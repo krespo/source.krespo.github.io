@@ -1,7 +1,7 @@
 ---
 title: "Azkaban 설치"
 date: 2019-10-31T18:11:20+09:00
-draft: true
+draft: false
 toc: false
 images:
 tags: 
