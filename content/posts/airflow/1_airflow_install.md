@@ -1,10 +1,10 @@
 ---
-title: "Airflow 설치"
+title: "1. Airflow 설치"
 date: 2019-11-04T11:34:19+09:00
 draft: false
 toc: false
 images:
-tags: [workflow, airflow]
+tags: [airflow, workflow]
 ---
 
 # 설치 환경
