@@ -4,8 +4,7 @@ date: 2019-10-31T18:11:20+09:00
 draft: false
 toc: false
 images:
-tags: 
-  - azkaban
+tags: [azkaban, workflow]
 ---
 
 ### 준비 1. OpenJDK 설치
@@ -46,4 +45,7 @@ systemProp.https.proxyPort=8888
 
 $ ./gradlew clean
 $ ./gradlew build installDist -x test
+
+## Azkaban 실행
+cd azkaban-solo-server/build/install/azkaban-solo-server; bin/start-solo.sh
 ```
