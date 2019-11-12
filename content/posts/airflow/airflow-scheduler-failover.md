@@ -1,5 +1,5 @@
 ---
-title: "3. Airflow Scheduler SPOF(Single Point Of Failure) 제거하기"
+title: "[Airflow] Scheduler SPOF(Single Point Of Failure) 제거하기"
 date: 2019-11-04T18:48:06+09:00
 draft: false
 tags: [airflow, workflow]

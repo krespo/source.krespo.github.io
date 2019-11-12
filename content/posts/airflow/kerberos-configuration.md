@@ -1,5 +1,5 @@
 ---
-title: "2. airflow 커버로스 설정"
+title: "[Airflow] 커버로스 설정 및 hive 연결"
 date: 2019-11-04T16:05:44+09:00
 draft: false
 toc: false
