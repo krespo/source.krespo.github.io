@@ -128,7 +128,7 @@ $ python setup.py install
 ### 3. airflow.cfg에 `hostname_callable` 수정
 ```
 #hostname_callable = socket:getfqdn
-hostname_callable = custom.net_utiles:get_hostname
+hostname_callable = custom.net_utils:get_hostname
 ```
 
 위와 같이 설정 후 webserver, scheduler를 재실행 하면 ip4 기반으로 작동시킬 수 있다.
