@@ -1,5 +1,5 @@
 ---
-title: "[Kudu] 소개 및 아키텍쳐"
+title: "[Kudu] 1. 소개 및 아키텍쳐"
 date: 2019-12-02T11:19:53+09:00
 draft: false
 toc: false
