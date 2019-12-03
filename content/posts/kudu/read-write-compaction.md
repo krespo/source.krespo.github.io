@@ -36,11 +36,11 @@ Kudu에서 데이터를 읽기 전 가장 먼저 해야할 일은 찾고자 하�
 
 Insert 요청이 들어오면 가장 먼서 [WAL](https://ko.wikipedia.org/wiki/%EB%A1%9C%EA%B7%B8_%EC%84%A0%ED%96%89_%EA%B8%B0%EC%9E%85)에 저장된다. 여러 NoSQL 서버에서 사용하는 방법이며 디스크에 플러시 되기전 문제가 발생하였을때 복구하기 위한 방법으로 사용된다.
 
-WAL에 쓰고나면 `MemRowSet`이라고 불리우는 메모리 영역에 쓰이게 된다. 이 부분에 쌓이게 되다 메모리가 가득차게 되면 디스크에 파일형태로 저장이 되는데 이것을 `DiskRowSet` 이라고 부른다. `DiskRowSet`은 Insert Operation을 통해 저장된 데이터인 `Base Data`와 Update Operation시에 사용할 메모리인 `DeltaMemStore`로 구성된다.
+WAL에 쓰고나면 `MemRowSet`이라고 불리우는 메모리 영역에 데이터를 쓴다. 이 부분에 쌓이게 되다 메모리가 가득차게 되면 디스크에 파일형태로 저장이 되는데 이것을 `DiskRowSet` 이라고 부른다. `DiskRowSet`은 Insert Operation을 통해 저장된 데이터인 `Base Data`와 Update Operation시에 사용할 메모리인 `DeltaMemStore`로 구성된다.
 
 ![write_step_2](write_path_2.png)
 
-Insert Operation이 지속적으로 발생하여 `MemRowSet`이 계속 flush 되면 `DiskRowSet`은 계속하여 늘어나게 된다. 이는 나중에 언급할 `DisRowSet Compaction`에 의해 적은수의 파일 형태로 합쳐진다.
+Insert Operation이 지속적으로 발생하여 `MemRowSet`이 계속 flush 되면 `DiskRowSet`은 계속하여 늘어나게 된다. 이는 나중에 언급할 `DiskRowSet Compaction`에 의해 적은수의 파일 형태로 합쳐진다.
 
 #### 2) Update Operation
 
@@ -56,7 +56,7 @@ Insert Operation이 `MemRowSet`이라 불리는 메모리 공간에 먼저 써�
 
 ![write_step_5](write_path_5_1.png)
 
-Client가 특정 Primary key에 대한 결과를 요청하면 Kudu는 `MemRowSet` + `DiskRowSet`의 결과를 찾아 Client에가 리턴해 주게 된다.
+Client가 특정 row에 대한 결과를 요청하면 Kudu는 `MemRowSet` + `DiskRowSet`의 결과를 찾아 Client에가 리턴해 주게 된다.
 
 이때
 
