@@ -1,5 +1,5 @@
 ---
-title: "[Kudu] 3. 인코딩과 압축"
+title: "[Kudu] 4. 인코딩과 압축"
 date: 2019-12-10T18:22:25+09:00
 draft: false
 toc: false
