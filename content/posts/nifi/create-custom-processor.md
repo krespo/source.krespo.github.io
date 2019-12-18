@@ -133,7 +133,7 @@ http://localhost:8080/nifi/ 를 웹브라우저에서 실행 한후 Processor �
 
 ![add processor](custom-processor.png)
 
-# 4. nifi 갱신방법
+# 4. 커스텀 프로세서 재배포 방법
 
 커스텀 프로세서의 로직을 수정했다면 아래와 같이 메이븐 빌드 후, nifi 컨테이너를 재시작시키는 작업 만으로 변경된 프로세서를 등록할 수 있다.
 
