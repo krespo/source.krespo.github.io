@@ -1,5 +1,5 @@
 ---
-title: "[NIFI] Custom Processor 생성 및 테스트 With Docker"
+title: "[Nifi] Custom Processor 생성 및 테스트 With Docker"
 date: 2019-12-18T20:17:52+09:00
 draft: false
 toc: false
