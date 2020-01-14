@@ -1,7 +1,7 @@
 ---
 title: "[Kudu] 시간 기준의 Range Partition 시 주의점(timezone, UTC)"
 date: 2020-01-14T13:13:56+09:00
-draft: true
+draft: false
 toc: false
 images:
 tags:
