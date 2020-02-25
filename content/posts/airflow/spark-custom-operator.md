@@ -67,7 +67,7 @@ class SparkBashOperator(BashOperator):
             --principal {principal} \
             --conf spark.yarn.maxAppAttempts={max_attempts} \
             {spark_opts} \
-            --yarn_queue {yarn_queue} \
+            --queue {yarn_queue} \
             --class {spark_class} \
             {jar} {job_args}
             """.format(driver_cores=self.driver_cores,
