@@ -31,7 +31,7 @@ class SparkBashOperator(BashOperator):
             num_executors="1",
             executor_memory="5g",
             max_attempts=1,
-            queue="root.default",
+            yarn_queue="root.default",
             spark_class="",
             jar="",
             keytab="",
@@ -46,7 +46,7 @@ class SparkBashOperator(BashOperator):
         self.nun_executors = num_executors
         self.executor_memory = executor_memory
         self.max_attempts = max_attempts
-        self.queue = queue
+        self.yarn_queue = yarn_queue
         self.spark_class = spark_class
         self.jar = jar
         self.keytab = keytab
@@ -67,7 +67,7 @@ class SparkBashOperator(BashOperator):
             --principal {principal} \
             --conf spark.yarn.maxAppAttempts={max_attempts} \
             {spark_opts} \
-            --queue {queue} \
+            --yarn_queue {yarn_queue} \
             --class {spark_class} \
             {jar} {job_args}
             """.format(driver_cores=self.driver_cores,
@@ -76,7 +76,7 @@ class SparkBashOperator(BashOperator):
                        nun_executors=self.nun_executors,
                        executor_memory=self.executor_memory,
                        max_attempts=self.max_attempts,
-                       queue=self.queue,
+                       yarn_queue=self.yarn_queue,
                        spark_class=self.spark_class,
                        jar=self.jar,
                        keytab=self.keytab,
@@ -107,7 +107,7 @@ spark_args = dict(driver_cores=1,
                   num_executors="1",
                   executor_memory="5g",
                   max_attempts=1,
-                  queue="default",
+                  yarn_queue="default",
                   spark_opts=["--conf \"spark.executor.extraJavaOptions=-XX:+PrintGCDetails -XX:+PrintGCTimeStamps\"",
                               "--conf spark.eventLog.enabled=false"
                               ],
