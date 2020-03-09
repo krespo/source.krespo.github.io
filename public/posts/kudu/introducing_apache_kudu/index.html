@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<meta name="theme-color" content="#494f5c">
+	<meta name="msapplication-TileColor" content="#494f5c">
+<meta itemprop="name" content="[Kudu] 1. 소개 및 아키텍쳐">
+<meta itemprop="description" content="Apache Kudu 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 Impala, Spark를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다.">
+<meta itemprop="datePublished" content="2019-12-02T11:19:53&#43;09:00" />
+<meta itemprop="dateModified" content="2019-12-02T11:19:53&#43;09:00" />
+<meta itemprop="wordCount" content="782">
+
+
+
+<meta itemprop="keywords" content="kudu," /><meta property="og:title" content="[Kudu] 1. 소개 및 아키텍쳐" />
+<meta property="og:description" content="Apache Kudu 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 Impala, Spark를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krespo.github.io/posts/kudu/introducing_apache_kudu/" />
+<meta property="article:published_time" content="2019-12-02T11:19:53+09:00" />
+<meta property="article:modified_time" content="2019-12-02T11:19:53+09:00" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kudu] 1. 소개 및 아키텍쳐"/>
+<meta name="twitter:description" content="Apache Kudu 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 Impala, Spark를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다."/>
+
+	<link rel="apple-touch-icon" sizes="180x180" href="https://krespo.github.io/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="https://krespo.github.io/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="https://krespo.github.io/favicon-16x16.png">
+	<link rel="manifest" href="https://krespo.github.io/site.webmanifest">
+	<link rel="mask-icon" href="https://krespo.github.io/safari-pinned-tab.svg" color="">
+	<link rel="shortcut icon" href="https://krespo.github.io/favicon.ico">
+
+	<title>[Kudu] 1. 소개 및 아키텍쳐</title>
+	<link rel="stylesheet" href="https://krespo.github.io/css/style.min.f9353fa06d7a22965a18ef7a64336219ae96a64e6486a29e724589fec4778291.css" integrity="sha256-+TU/oG16IpZaGO96ZDNiGa6Wpk5khqKeckWJ/sR3gpE=" crossorigin="anonymous">
+	
+	<link rel="stylesheet" href="https://krespo.github.io/css/custom.css"><meta name="google-site-verification" content="VwnRREQaDb1y61f_w8NOkuXogYuXMMaz4N5of9uxDnE" />
+<meta name="naver-site-verification" content="43d30adf0d1326d89874b4e4b3c50d4151932b04"/>
+<script data-ad-client="ca-pub-7415573230782119" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+
+</head>
+
+<body id="page">
+	
+	<header id="site-header" class="animated slideInUp faster">
+		<div class="hdr-wrapper section-inner">
+			<div class="hdr-left">
+				<div class="site-branding">
+					<a href="https://krespo.github.io">나는 개발자</a>
+				</div>
+				<nav class="site-nav hide-in-mobile">
+					
+				<a href="https://krespo.github.io/posts/">Posts</a>
+
+				</nav>
+			</div>
+			<div class="hdr-right hdr-icons">
+				<span class="hdr-social hide-in-mobile"><a href="https://github.com/krespo" target="_blank" rel="noopener me" title="Github"><svg xmlns="http://www.w3.org/2000/svg" class="feather" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg></a></span><button id="menu-btn" class="hdr-btn" title=""><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-menu"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+			</div>
+		</div>
+	</header>
+	<div id="mobile-menu" class="animated fast">
+		<ul>
+			<li><a href="https://krespo.github.io/posts/">Posts</a></li>
+		</ul>
+	</div>
+
+
+	<main class="site-main section-inner animated fadeIn faster">
+		<article class="thin">
+			<header class="post-header">
+				<div class="post-meta"><span>Dec 2, 2019</span></div>
+				<h1>[Kudu] 1. 소개 및 아키텍쳐</h1>
+			</header>
+			<div class="content">
+				<p><img src="kudu_logo.png" alt="apache Kudu"></p>
+<p><a href="https://kudu.apache.org/docs/index.html">Apache Kudu</a> 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 <code>Impala</code>, <code>Spark</code>를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다.</p>
+<h2 id="1-kudu의-장점">1. Kudu의 장점<a href="#1-kudu의-장점" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h2>
+<ul>
+<li>OLAP성 작업의 빠른 처리</li>
+<li>MapReduce, Spark 및 기타 Hadoop 에코 시스템 컴포넌트들과의 통합</li>
+<li>Apache Impala와의 강력한 통합으로 Apache Parquet와 함께 HDFS를 사용하는 것보다 좋은 대안이 될수 있다.</li>
+<li>강력하지만 유연한 일관성 모델을 통해 엄격한 직렬화 가능 일관성 옵션을 포함하여 요청별로 일관성 요구 사항을 선택할 수 있다.</li>
+<li>순차적 및 랜덤 워크로드를 동시에 실행하기위한 강력한 성능.</li>
+<li>관리가 쉬움</li>
+<li>높은 가용성. 태블릿 서버와 마스터 서버는 Raft Consensus Algorithm을 사용하여 HA를 구성</li>
+<li>리더 태블릿의 오류가 발생하더라도 읽기 전용 팔로어 태블릿을 통해 읽기 서비스를 제공 가능함</li>
+<li>구조화 된 데이터 모델</li>
+</ul>
+<h2 id="2-kudu의-구성요소">2. Kudu의 구성요소<a href="#2-kudu의-구성요소" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h2>
+<ul>
+<li>
+<p>Table : 테이블은 데이터가 저장되는 장소이다. 테이블은 스키마와 전체적으로 정렬되어 있는 Primary key를 가지고 있다. 테이블은 <code>tablet</code> 이라고 불리는 세그먼트로 나뉘어 질 수 있다.</p>
+</li>
+<li>
+<p>Tablet : 태블릿은 다른 데이터 저장 엔진이나 관계형 데이터베이스의 파티션과 유사한 테이블의 연속적인 부분이다. 주어진 태블릿은 여러 개의 태블릿 서버에 복제되며, 주어진 시점에 이러한 복제품 중 하나가 리더 태블릿으로 간주된다. HBase의 Region과 유사함</p>
+</li>
+<li>
+<p>Tablet Server : 태블릿 서버는 태블릿을 저장하고, 클라이언트에게 데이터를 제공한다. HBase의 Region Server와 유사함</p>
+</li>
+<li>
+<p>Master : 마스터는 모든 카탈로그 테이블이라고 불리우는 태블릿과 태블릿 서버 메타 데이터와 클러스터 메타 데이터를 저장한다. Tablet과 마찬가지로 Raft Consensus Algorithm을 이용해 Master중 리더가 선출되며 선출된 마스터를 통해 메타데이터를 읽거나 쓸수 있다.</p>
+</li>
+</ul>
+<h2 id="3-kudu-architecture">3. Kudu Architecture<a href="#3-kudu-architecture" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h2>
+<p><img src="kudu_architecture.png" alt="Kudu Architecture"></p>
+<p>위의 구성요소에서 설명한데로 Master와 Tablet은 하나의 마스터와 여러개의 Follow를 가지며, Replication 구성된 태블릿은 여러대의 Table Server에 분산 저장 되는것을 볼수 있다.</p>
+<h6 id="출처-httpskuduapacheorgdocs">출처: <a href="https://kudu.apache.org/docs/">https://kudu.apache.org/docs/</a><a href="#출처-httpskuduapacheorgdocs" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h6>
+
+			</div>
+
+			<hr class="post-end">
+			<footer class="post-info">
+				<p>
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag meta-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7" y2="7"></line></svg><span class="tag"><a href="https://krespo.github.io/tags/kudu">kudu</a></span>
+				</p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-file-text"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-calendar"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>2019-12-02 11:19 &#43;0900</p>
+			</footer>
+		</article>
+		<div class="post-nav thin">
+			<a class="next-post" href="https://krespo.github.io/posts/kudu/read-write-compaction/">
+				<span class="post-nav-label"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>&nbsp;</span><br><span>[Kudu] 2. Write And Compaction</span>
+			</a>
+			<a class="prev-post" href="https://krespo.github.io/posts/airflow/spark-submit-and-airflow/">
+				<span class="post-nav-label">&nbsp;<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span><br><span>[Airflow] SparkSubmitOperator를 이용한 spark 실행</span>
+			</a>
+		</div>
+		<div id="comments" class="thin">
+<div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "krespogithub" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div>
+	</main>
+
+	<footer id="site-footer" class="section-inner thin animated fadeIn faster">
+		<p>&copy; 2020 <a href="https://krespo.github.io">Louis</a> &#183; <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></p>
+		<p>
+			Made with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> &#183; Theme <a href="https://github.com/Track3/hermit" target="_blank" rel="noopener">Hermit</a> &#183; <a href="https://krespo.github.io/posts/index.xml" target="_blank" title="rss"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-rss"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></a>
+		</p>
+	</footer>
+
+
+
+<script type="text/javascript" src="//wcs.naver.net/wcslog.js"></script>
+<script type="text/javascript">
+if(!wcs_add) var wcs_add = {};
+wcs_add["wa"] = "42422406c68d58";
+wcs_do();
+</script>
+
+
+
+
+	<script src="https://krespo.github.io/js/bundle.min.4a9a0ac3d2217822c7865b4161e6c2a71de1d70492264337755427898dd718f6.js" integrity="sha256-SpoKw9IheCLHhltBYebCpx3h1wSSJkM3dVQniY3XGPY=" crossorigin="anonymous"></script>
+	
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-151417087-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+</body>
+
+</html>

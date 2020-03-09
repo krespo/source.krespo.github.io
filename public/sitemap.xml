@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/presto-kudu-datetime/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/kudu/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/presto/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/</loc>
+    <lastmod>2020-03-03T16:19:21+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/dag_deployment/</loc>
+    <lastmod>2020-02-24T16:47:18+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/airflow/</loc>
+    <lastmod>2020-02-24T16:47:18+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/develop-environment-with-dags/</loc>
+    <lastmod>2020-02-11T13:29:34+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/sqoop/is-not-a-directory-error/</loc>
+    <lastmod>2020-02-10T17:33:42+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/hadoop/</loc>
+    <lastmod>2020-02-10T17:33:42+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/sqoop/</loc>
+    <lastmod>2020-02-10T17:33:42+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/develop-environment/</loc>
+    <lastmod>2020-02-05T16:53:19+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/spark-custom-operator/</loc>
+    <lastmod>2020-02-05T11:06:09+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/etc/chrome_err_cert_revoked_error/</loc>
+    <lastmod>2020-01-31T16:56:58+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/chrome/</loc>
+    <lastmod>2020-01-31T16:56:58+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/ssl/</loc>
+    <lastmod>2020-01-31T16:56:58+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/range-partition/</loc>
+    <lastmod>2020-01-14T13:13:56+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/nifi/could-not-generate-extensions-documentation/</loc>
+    <lastmod>2020-01-02T11:01:41+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/nifi/</loc>
+    <lastmod>2020-01-02T11:01:41+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/java/invalid-source-release-error/</loc>
+    <lastmod>2020-01-02T10:21:11+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/intellij/</loc>
+    <lastmod>2020-01-02T10:21:11+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/java/</loc>
+    <lastmod>2020-01-02T10:21:11+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/maven/</loc>
+    <lastmod>2020-01-02T10:21:11+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/nifi/create-custom-processor/</loc>
+    <lastmod>2019-12-18T20:17:52+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/docker/</loc>
+    <lastmod>2019-12-18T20:17:52+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kafka/skew-reassign-partition/</loc>
+    <lastmod>2019-12-11T16:16:49+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/kafka/</loc>
+    <lastmod>2019-12-11T16:16:49+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/kafka-manager/</loc>
+    <lastmod>2019-12-11T16:16:49+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/encoding-compression/</loc>
+    <lastmod>2019-12-10T18:22:25+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kafka-manager/install-kafka-manager/</loc>
+    <lastmod>2019-12-10T14:31:31+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/install_kudu/</loc>
+    <lastmod>2019-12-04T16:52:07+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/read-write-compaction/</loc>
+    <lastmod>2019-12-02T18:41:12+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/kudu/introducing_apache_kudu/</loc>
+    <lastmod>2019-12-02T11:19:53+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/spark-submit-and-airflow/</loc>
+    <lastmod>2019-11-12T13:23:33+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/spark/</loc>
+    <lastmod>2019-11-12T13:23:33+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/spark-submit/</loc>
+    <lastmod>2019-11-12T13:23:33+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/workflow/</loc>
+    <lastmod>2019-11-12T13:23:33+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/hostname-error/</loc>
+    <lastmod>2019-11-11T16:34:10+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/bin-log/</loc>
+    <lastmod>2019-11-07T13:50:51+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/mysql/</loc>
+    <lastmod>2019-11-07T13:50:51+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/mysql/on-off-bin-log/</loc>
+    <lastmod>2019-11-07T13:50:51+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/airflow-scheduler-failover/</loc>
+    <lastmod>2019-11-04T18:48:06+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/kerberos-configuration/</loc>
+    <lastmod>2019-11-04T16:05:44+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/kerberos/</loc>
+    <lastmod>2019-11-04T16:05:44+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/airflow/1_airflow_install/</loc>
+    <lastmod>2019-11-04T11:34:19+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/posts/azkaban/1-azkaban/</loc>
+    <lastmod>2019-10-31T18:11:20+09:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://krespo.github.io/tags/azkaban/</loc>
+    <lastmod>2019-10-31T18:11:20+09:00</lastmod>
+  </url>
+  
+</urlset>

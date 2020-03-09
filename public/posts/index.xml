@@ -1,0 +1,1819 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Posts on 나는 개발자</title>
+		<link>https://krespo.github.io/posts/</link>
+		<description>Recent content in Posts on 나는 개발자</description>
+		<generator>Hugo -- gohugo.io</generator>
+		<language>ko-KR</language>
+		<copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+		<lastBuildDate>Tue, 03 Mar 2020 16:19:21 +0900</lastBuildDate>
+		<atom:link href="https://krespo.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+		
+		<item>
+			<title>[Kudu]Kudu와 Presto 그리고 unix_timestamp에 대해 이해하기</title>
+			<link>https://krespo.github.io/posts/kudu/presto-kudu-datetime/</link>
+			<pubDate>Tue, 03 Mar 2020 16:19:21 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/presto-kudu-datetime/</guid>
+			<description>Kudu 공식 문서에도 나와있지만 Kudu에서 주로 사용하는 쿼리엔진은 Impala나 Hive다. 하지만 필자는 이미 사용하고 있는 Presto 클러스터가 있어 Presto-Kudu Connector 를 이용하</description>
+			<content type="html"><![CDATA[<p>Kudu 공식 문서에도 나와있지만 Kudu에서 주로 사용하는 쿼리엔진은 Impala나 Hive다.
+하지만 필자는 이미 사용하고 있는 Presto 클러스터가 있어 <a href="https://prestodb.io/docs/current/connector/kudu.html">Presto-Kudu Connector</a> 를 이용하여 Kudu에 쿼리를 수행하고 있었는데, Kudu의 <code>unixtime_micros</code> 타입의 컬럼이 계속 헷갈려 여러가지 테스트를 수행해 보았다.
+이 포스팅은 그 테스트 과정 및 결과에 대한 이야기이다.</p>
+<h2 id="kudu에-데이터를-넣을때-kstutc9-시간을-utc로-변경해서-넣어야-할까">Kudu에 데이터를 넣을때 KST(UTC+9) 시간을 UTC로 변경해서 넣어야 할까?</h2>
+<p>사실 많은 개발자들이 알고있듯, <a href="https://ko.wikipedia.org/wiki/%EC%9C%A0%EB%8B%89%EC%8A%A4_%EC%8B%9C%EA%B0%84">유닉스_시간</a>은 1970년 1월1일 부터 현재까지의 시간을 정수형으로 나타낸 값이다. Kudu에도 시간을 나타내는 컬럼인 <code>unixtime_micros</code> 타입의 컬럼로 이 유닉스 타임을 저장하기 위한 컬럼이다.</p>
+<p>유닉스 시간에 대한 별다른 이해 없이, KST 시간을 kudu의 unixtime_micros에 저장하려면 KST-&gt;UTC-&gt;epoch시간 으로 변경해야 한다고 생각했다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-java" data-lang="java"><span class="n">LocalDateTime</span> <span class="n">currentTime</span> <span class="o">=</span> <span class="n">LocalDateTime</span><span class="o">.</span><span class="na">now</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+<span class="n">ZonedDateTime</span> <span class="n">utcTime</span> <span class="o">=</span> <span class="n">currentTime</span><span class="o">.</span><span class="na">atZone</span><span class="o">(</span><span class="n">ZoneId</span><span class="o">.</span><span class="na">of</span><span class="o">(</span><span class="s">&#34;Asia/Seoul&#34;</span><span class="o">)</span><span class="o">)</span><span class="o">.</span><span class="na">withZoneSameInstant</span><span class="o">(</span><span class="n">ZoneId</span><span class="o">.</span><span class="na">of</span><span class="o">(</span><span class="s">&#34;UTC&#34;</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">&#34;KST Time : &#34;</span> <span class="o">+</span> <span class="n">currentTime</span><span class="o">)</span><span class="o">;</span>
+<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">&#34;UTC Time : &#34;</span> <span class="o">+</span> <span class="n">utcTime</span><span class="o">)</span><span class="o">;</span>
+<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">&#34;KST epoch Time : &#34;</span> <span class="o">+</span> <span class="n">currentTime</span><span class="o">.</span><span class="na">toEpochSecond</span><span class="o">(</span><span class="n">ZoneOffset</span><span class="o">.</span><span class="na">of</span><span class="o">(</span><span class="s">&#34;+09:00&#34;</span><span class="o">)</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">&#34;UTC epoch Time : &#34;</span> <span class="o">+</span> <span class="n">utcTime</span><span class="o">.</span><span class="na">toEpochSecond</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+<span class="c1">//출력 결과
+</span><span class="c1"></span><span class="c1">//KST Time : 2020-03-09T14:11:33.564
+</span><span class="c1"></span><span class="c1">//UTC Time : 2020-03-09T05:11:33.564Z[UTC]
+</span><span class="c1"></span><span class="c1">//KST epoch Time : 1583730693
+</span><span class="c1"></span><span class="c1">//UTC epoch Time : 1583730693
+</span></code></pre></div><p>그런데 위의 샘플 코드에서 보면 알겠지만, KST 시간을 UTC로 변경해도 epoch time은 값이 변하지 않았다.</p>
+<p>왜냐하면 유닉스 시간(epoch time)은 UTC 시간 기준이기 때문에 변경하고자 하는 시간의 timezone이 어찌되었던 항상 UTC 기준의 값을 돌려줌으로, <em>KST 시간을 kudu에 저장할때 굳이 UTC로 timezone을 변경할 필요가 없다.</em></p>
+<h2 id="presto에서는-왜-저장한-시간의-9시간이-추가되어-검색될까">Presto에서는 왜 저장한 시간의 +9시간이 추가되어 검색될까?</h2>
+<p>Presto를 이용하기 위한 방법으로는 presto-cli를 이용하는 방법과 Presto JDBC를 이용하여 쿼리를 수행하는 방법 두가지가 있다.
+그런데 위 두가지의 경우 모두 <code>unixtime_micros</code> 컬럼을 UTC에서 KST로 자동으로 변경된 값으로 변경이 된다.</p>
+<p>이는 presto-cli, jdbc 모두 로컬 환경의 기본 timezone을 따라가기 때문이다.</p>
+<h4 id="presto-cli">presto-cli</h4>
+<pre><code>presto&gt; select current_time();
+   _col0
+--------------
+  Asia/Seoul
+(1 row)
+</code></pre><h4 id="presto-jdbc">presto-jdbc</h4>
+<div class="highlight"><pre class="chroma"><code class="language-java" data-lang="java"><span class="c1">//https://github.com/prestosql/presto/blob/master/presto-jdbc/src/main/java/io/prestosql/jdbc/PrestoConnection.java
+</span><span class="c1"></span><span class="n">PrestoConnection</span><span class="o">(</span><span class="n">PrestoDriverUri</span> <span class="n">uri</span><span class="o">,</span> <span class="n">QueryExecutor</span> <span class="n">queryExecutor</span><span class="o">)</span>
+            <span class="kd">throws</span> <span class="n">SQLException</span>
+    <span class="o">{</span>
+        <span class="n">requireNonNull</span><span class="o">(</span><span class="n">uri</span><span class="o">,</span> <span class="s">&#34;uri is null&#34;</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">jdbcUri</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="na">getJdbcUri</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">httpUri</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="na">getHttpUri</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">schema</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">uri</span><span class="o">.</span><span class="na">getSchema</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">catalog</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">uri</span><span class="o">.</span><span class="na">getCatalog</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">user</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="na">getUser</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">applicationNamePrefix</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="na">getApplicationNamePrefix</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">extraCredentials</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="na">getExtraCredentials</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">queryExecutor</span> <span class="o">=</span> <span class="n">requireNonNull</span><span class="o">(</span><span class="n">queryExecutor</span><span class="o">,</span> <span class="s">&#34;queryExecutor is null&#34;</span><span class="o">)</span><span class="o">;</span>
+        <span class="n">uri</span><span class="o">.</span><span class="na">getClientTags</span><span class="o">(</span><span class="o">)</span><span class="o">.</span><span class="na">ifPresent</span><span class="o">(</span><span class="n">tags</span> <span class="o">-</span><span class="o">&gt;</span> <span class="n">clientInfo</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="s">&#34;ClientTags&#34;</span><span class="o">,</span> <span class="n">tags</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+        <span class="n">roles</span><span class="o">.</span><span class="na">putAll</span><span class="o">(</span><span class="n">uri</span><span class="o">.</span><span class="na">getRoles</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+        <span class="n">timeZoneId</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">ZoneId</span><span class="o">.</span><span class="na">systemDefault</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+        <span class="n">locale</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">Locale</span><span class="o">.</span><span class="na">getDefault</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+        <span class="n">sessionProperties</span><span class="o">.</span><span class="na">putAll</span><span class="o">(</span><span class="n">uri</span><span class="o">.</span><span class="na">getSessionProperties</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+    <span class="o">}</span>
+</code></pre></div><p>이렇게 로컬 시스템의 기본 timezone 설정을 통해 timezone이 세팅되기 때문에 유닉스 타임의 컬럼이더라도 자동으로 KST 시간으로 변경되어 검색이 된다.</p>
+<h2 id="어플리케이션에서-utc-기준의-시간으로-나타내려면">어플리케이션에서 UTC 기준의 시간으로 나타내려면?</h2>
+<p>prest-jdbc 에서는 PrestoConnection.setTimezone 메소드를 호출하여 Timezone을 설정할 수 있다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] Multi Server Cluster 환경에서 dag 파일은 모든 서버에 배포해야할까?</title>
+			<link>https://krespo.github.io/posts/airflow/dag_deployment/</link>
+			<pubDate>Mon, 24 Feb 2020 16:47:18 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/dag_deployment/</guid>
+			<description>오늘은 Multi Server Cluster 환경에서 dag를 배포하는것에 대해 이야기를 해보려고한다. 얼마전에 블로그 댓글을 통해 이런 문의가 왔었다. Master 역할을 하는 서버에만 dag를 배포</description>
+			<content type="html"><![CDATA[<p>오늘은 Multi Server Cluster 환경에서 dag를 배포하는것에 대해 이야기를 해보려고한다.</p>
+<p>얼마전에 블로그 댓글을 통해 이런 문의가 왔었다.</p>
+<blockquote>
+<p>Master 역할을 하는 서버에만 dag를 배포하고, 이를 통해 Worker에 dag 파일을 전달하는 방식으로 dag를 수행할수 있습니까?</p>
+</blockquote>
+<p>답변으로 간단하게 <code>불가</code>함을 적었었는데, 오늘은 조금더 상세히 남겨보려고한다.</p>
+<p>일단 좀더 상세한 로그를 확인하려면 <code>airflow.cfg</code>의 로그레벨 설정항목인 <code>logging_level = INFO</code> 로 설정을 한뒤, scheduler.log 파일을 훑어보면 아래와 같은 로그가 남겨진다.</p>
+<pre><code>[2020-02-12 15:12:17,513] {base_executor.py:59} INFO - Adding to queue: ['airflow', 'run', 'test_task', 'custom_opeartor', '2019-12-31T15:00:00+00:00', '--local', '--pool', 'default_pool', '-sd', '/.../TestSqoopOperator.py']
+[2020-02-12 15:12:17,514] {celery_executor.py:45} INFO - Executing command in Celery: ['airflow', 'run', 'test_task', 'custom_opeartor', '2019-12-31T15:00:00+00:00', '--local', '--pool', 'default_pool', '-sd', '/.../TestSqoopOperator.py']
+</code></pre><p>Adding to queue 로그는 레빗엠큐나 레디스 큐에 넣어주는 정보이고, Executing command 는 실제 worker가 잡을 할당받아 수행하게 되는 정보를 나타낸다.</p>
+<p>한눈에 보면 알겠지만 -sd라는 파라미터로 실제 수행하고자 하는 dag파일의 위치가 문자형으로 넘어가게 된다.</p>
+<p>이를 통해 수행되는 코드는 아래와 같다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1">## celery_executor.py</span>
+
+<span class="nd">@app.task</span>
+<span class="k">def</span> <span class="nf">execute_command</span><span class="p">(</span><span class="n">command_to_exec</span><span class="p">)</span><span class="p">:</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">LoggingMixin</span><span class="p">(</span><span class="p">)</span><span class="o">.</span><span class="n">log</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">Executing command in Celery: </span><span class="si">%s</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">command_to_exec</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command_to_exec</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">,</span>
+                              <span class="n">close_fds</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">execute_command encountered a CalledProcessError</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+
+        <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">Celery command failed</span><span class="s1">&#39;</span><span class="p">)</span>
+</code></pre></div><p>코드를 확인해보면 큐에서 전달받은 데이터를 통해 subprocess 모듈을 이용하여 파이썬 파일을 실행하는것을 볼수 있다.</p>
+<p>즉 dag를 실행하려면 master에만 dag를 배포하면 안되고, airflow를 구성하고 있는 모든서버의 <code>동일한 위치, 동일한 이름</code>으로 dag 파일이 존재하여야 실행된다는것을 알수 있다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] Local 개발환경 설정(2)_Dag 개발</title>
+			<link>https://krespo.github.io/posts/airflow/develop-environment-with-dags/</link>
+			<pubDate>Tue, 11 Feb 2020 13:29:34 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/develop-environment-with-dags/</guid>
+			<description>앞서 Local 개발환경 설정(1)_설치를 통해 로컬에 Airflow를 설치를 해보았다. 이번에는 로컬에 설치된 Airflow를 이용하여 dag를 개발할 수 있는 환</description>
+			<content type="html"><![CDATA[<p>앞서 <a href="/posts/airflow/develop-environment/">Local 개발환경 설정(1)_설치</a>를 통해 로컬에 Airflow를 설치를 해보았다.</p>
+<p>이번에는 로컬에 설치된 Airflow를 이용하여 dag를 개발할 수 있는 환경을 만들어 보고자 한다.</p>
+<h1 id="개발-환경">개발 환경</h1>
+<ul>
+<li>Mac OS(Catalina)</li>
+<li>Intellij</li>
+</ul>
+<p>이전 포스팅에서도 이야기했듯, 2가지 git repository를 사용하는데</p>
+<ul>
+<li>airflow-devel repository : 로컬에 airflow 모듈을 설정</li>
+<li>airflow-dags repository : dag를 생성하고, 이를 통해 Production Level의 서버에 배포</li>
+</ul>
+<p>하는 역할을 한다.</p>
+<p>이 airflow-dags repository는 git submodule을 이용하여 로컬에 설치한 airflow-devel/dags로 추가한다.</p>
+<h1 id="1-git-submodule을-이용하여-airflow_homedags에-추가한다">1. git submodule을 이용하여 AIRFLOW_HOME/dags에 추가한다.</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">cd</span> <span class="si">${</span><span class="nv">AIRFLOW_HOME</span><span class="si">}</span>
+
+<span class="c1">## master브랜치를 dags라는 디렉토리로 submodule을 만든다.</span>
+<span class="c1">## 각 환경에 맞는 dags Repository를 추가하자.</span>
+$ git submodule -b master add https://github.com/krespo/airflow-dags.git dags
+</code></pre></div><h1 id="2-intellij에서-airflow-devel-프로젝트-설정">2. Intellij에서 airflow-devel 프로젝트 설정</h1>
+<ol>
+<li><code>Intellij Menu -&gt; File -&gt; Open</code> 을 선택하여, airflow-devel 프로젝트를 선택한다. <strong>(airflow-devel/dags를 선택하는 것이 아니다)</strong></li>
+<li><code>Command + ; 혹은 Project structure</code> 를 선택한다.
+<ol>
+<li>Python SDK 설정
+<ol>
+<li>좌측 Project -&gt; Project SDK 에서 new(Python SDK) 선택</li>
+<li>Virtualenv Environment 선택</li>
+<li>Existing environment를 선택하고 Interpreter 부분에 airflow-devel/.direnv/python-3.7.6/bin/python 선택 후 저장</li>
+</ol>
+</li>
+<li>좌측 Modules를 눌러 dags 디렉토리를 Sources로 지정 <img src="airflow-modules.png" alt="airflow-modules"></li>
+</ol>
+</li>
+</ol>
+<h1 id="3-dag-생성">3. Dag 생성</h1>
+<p>dags 디렉토리에 테스트용 dag를 생성한다. 2번의 작업이 정상적으로 되었다면 아래의 소스코드에서 소스에러는 보이지 않을것이다. 만약 airflow 모듈을 찾지 못한다고 빨간줄이 생기면서 에러가 발생한다면 2번의 설정이 정상적인지 다시한번 확인한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">airflow</span> <span class="kn">import</span> <span class="n">DAG</span>
+<span class="kn">from</span> <span class="nn">airflow.operators.bash_operator</span> <span class="kn">import</span> <span class="n">BashOperator</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">owner</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">Airflow</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">depends_on_past</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">start_date</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email</span><span class="s1">&#39;</span><span class="p">:</span> <span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">airflow@example.com</span><span class="s1">&#39;</span><span class="p">]</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email_on_failure</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email_on_retry</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retries</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">catchup</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retry_delay</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">dag</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">tutorial</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">default_args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span> <span class="n">schedule_interval</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="p">)</span>
+
+<span class="c1"># t1, t2 and t3 are examples of tasks created by instantiating operators</span>
+<span class="n">t1</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">print_date</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">date</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">t2</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">sleep</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">sleep 5</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">templated_command</span> <span class="o">=</span> <span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    {</span><span class="si">% f</span><span class="s2">or i in range(5) </span><span class="s2">%</span><span class="s2">}</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ ds }}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ macros.ds_add(ds, 7)}}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ params.my_param }}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    {</span><span class="si">% e</span><span class="s2">ndfor </span><span class="s2">%</span><span class="s2">}</span><span class="s2">
+</span><span class="s2"></span><span class="s2">&#34;&#34;&#34;</span>
+
+<span class="n">t3</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">templated</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="n">templated_command</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">my_param</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">Parameter I passed in</span><span class="s1">&#39;</span><span class="p">}</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">t1</span> <span class="o">&gt;&gt;</span> <span class="n">t2</span> <span class="o">&gt;&gt;</span> <span class="n">t3</span>
+</code></pre></div><h1 id="4-local에서-생성된-dag-실행">4. Local에서 생성된 dag 실행</h1>
+<p>아래와 같은 명령어로 airflow를 로컬에서 실행시키자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">nohup airflow scheduler &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+nohup airflow webserver &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div><p>http://localhost:8080 로 접속하여 방금 생성한 dag가 제대로 로드되고 실행되는지 체크한다.</p>
+<p>아래 그림처럼 방금 생성한 tutorial dag가 화면에 보이면 정상이다.
+<img src="airflow-local-exe.png" alt="airflow-local"></p>
+<h1 id="5-production-환경의-airflow에-dag배포">5. Production 환경의 airflow에 dag배포</h1>
+<p>필요한 dag를 모두 생성 완료했다면, submodule인 dags를 commit &amp; push 한다.</p>
+<p>그 후 Production Level의 airflow서버에 접속하여 airflow-dags repository를 <a href="/posts/airflow/develop-environment-with-dags/#1-git-submodule%EC%9D%84-%EC%9D%B4%EC%9A%A9%ED%95%98%EC%97%AC-airflow_homedags%EC%97%90-%EC%B6%94%EA%B0%80%ED%95%9C%EB%8B%A4">1번 설정</a> 설정과 동일하게 $AIRFLOW_HOME에 submodule로 생성하여 사용한다.</p>
+<p>필자는 jenkins &amp; github webhook을 통해 airflow-dags에 push가 발생하면 jenkins가 각 airflow 서버에 배포하도록 설정하였다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Sqoop] Parameter &#39;directory&#39; is not a directory 에러 해결하기</title>
+			<link>https://krespo.github.io/posts/sqoop/is-not-a-directory-error/</link>
+			<pubDate>Mon, 10 Feb 2020 17:33:42 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/sqoop/is-not-a-directory-error/</guid>
+			<description>.bash_profile 이나 ${SQOOP_HOME}/conf/sqoop_env.sh에 HADOOP_MAPRED_HOME 환경변수를 지정했음에도 계속 아래와 같이 HADOOP_MAPRED_HO</description>
+			<content type="html"><![CDATA[<p><code>.bash_profile</code> 이나 <code>${SQOOP_HOME}/conf/sqoop_env.sh</code>에 <code>HADOOP_MAPRED_HOME</code> 환경변수를 지정했음에도 계속 아래와 같이 HADOOP_MAPRED_HOME을 /usr/lib/hadoop-mapreduce의 경로에서 읽어 에러가 발생한다.</p>
+<pre><code>20/02/10 17:41:18 INFO orm.CompilationManager: HADOOP_MAPRED_HOME is /usr/lib/hadoop-mapreduce
+20/02/10 17:41:18 ERROR tool.ImportTool: Import failed: Parameter 'directory' is not a directory
+</code></pre><h1 id="해결-1--hadoop-mapred-home-파라미터-설정">해결 1 : hadoop-mapred-home 파라미터 설정</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">sqoop import <span class="se">\
+</span><span class="se"></span>--hadoop-mapred-home <span class="si">${</span><span class="nv">HADOOP_HOME</span><span class="si">}</span>/share/hadoop/mapreduce <span class="se">\ </span> <span class="c1">##파라미터 추가</span>
+--connect <span class="s2">&#34;jdbc:mysql://111.111.111.111:3306/dev&#34;</span> <span class="se">\
+</span><span class="se"></span>--username xx <span class="se">\
+</span><span class="se"></span>--password xx <span class="se">\
+</span><span class="se"></span>--table log <span class="se">\
+</span><span class="se"></span>--target-dir <span class="s2">&#34;hdfs://xxx/sample&#34;</span> <span class="se">\
+</span><span class="se"></span>-m <span class="m">1</span>
+</code></pre></div><h1 id="해결-2--usrlibhadoop-mapreduce-심볼릭-링크-생성">해결 2 : /usr/lib/hadoop-mapreduce 심볼릭 링크 생성</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## 심볼릭링크 생성</span>
+sudo ln -s /usr/lib/hadoop-mapreduce <span class="si">${</span><span class="nv">HADOOP_HOME</span><span class="si">}</span>/share/hadoop/mapreduce
+
+<span class="c1">## SQOOP 실행</span>
+sqoop import <span class="se">\
+</span><span class="se"></span>--connect <span class="s2">&#34;jdbc:mysql://111.111.111.111:3306/dev&#34;</span> <span class="se">\
+</span><span class="se"></span>--username xx <span class="se">\
+</span><span class="se"></span>--password xx <span class="se">\
+</span><span class="se"></span>--table log <span class="se">\
+</span><span class="se"></span>--target-dir <span class="s2">&#34;hdfs://xxx/sample&#34;</span> <span class="se">\
+</span><span class="se"></span>-m <span class="m">1</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] Local 개발환경 설정(1)_설치</title>
+			<link>https://krespo.github.io/posts/airflow/develop-environment/</link>
+			<pubDate>Wed, 05 Feb 2020 16:53:19 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/develop-environment/</guid>
+			<description>로컬에서 airflow dag를 생성하거나, 커스텀 오퍼레이터를 생성하기 위해서 로컬에 airflow를 세팅하고, dag를 개발하는 환경을 구축해 보고자 한다. 요구사</description>
+			<content type="html"><![CDATA[<p>로컬에서 airflow dag를 생성하거나, 커스텀 오퍼레이터를 생성하기 위해서 로컬에 airflow를 세팅하고, dag를 개발하는 환경을 구축해 보고자 한다.</p>
+<h2 id="요구사항">요구사항</h2>
+<ul>
+<li>os: Mac OS(Catalina)</li>
+<li><a href="https://github.com/">github</a></li>
+<li><a href="https://brew.sh/index_ko">Homebrew</a></li>
+<li>direnv를 설치하기 위함</li>
+<li><a href="https://direnv.net/">direnv</a></li>
+<li>direnv는 해당 디렉토리에 .envrc 파일을 읽어 자동으로 python virtualenv 환경을 활성화 시켜주는 역할을 한다.</li>
+</ul>
+<h2 id="구조">구조</h2>
+<p><img src="airflow-dev.png" alt="develop-environment"></p>
+<ul>
+<li>github에 2개의 repository를 생성한다.(airflow-devel, airflow-dags)</li>
+<li>airflow-devel: 로컬에서 테스트 하기 위한 root 프로젝트, 이 프로젝트는 로컬 테스트 환경에서만 사용한다.</li>
+<li>airflow-dags: 로컬 및 실제 Airflow 클러스터에서 실행하고자 하는 dag 프로젝트, git submodule을 이용하여 관리된다.</li>
+</ul>
+<h2 id="0-homebrew-direnv-설치">0. Homebrew, direnv 설치</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## homebrew install</span>
+$ /usr/bin/ruby -e <span class="s2">&#34;</span><span class="k">$(</span>curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install<span class="k">)</span><span class="s2">&#34;</span>
+
+<span class="c1">## direnv install</span>
+$ brew install direnv
+$ <span class="nb">echo</span> <span class="s1">&#39;eval &#34;$(direnv hook bash)&#34;&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">source</span> ~/.bash_profile
+</code></pre></div><h2 id="1-github-repository-생성">1. github Repository 생성</h2>
+<ul>
+<li>airflow-devel</li>
+<li>airflow-dags</li>
+</ul>
+<h2 id="2-airflow-devel-설정">2. airflow-devel 설정</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone <span class="o">{</span>1에서 생성한 git repository<span class="o">}</span>/airflow-devel.git
+$ <span class="nb">cd</span> airflow-devel
+
+$ <span class="nb">echo</span> <span class="s1">&#39;layout python3&#39;</span> &gt; .envrc
+$ <span class="nb">echo</span> <span class="s1">&#39;export AIRFLOW_HOME=&#39;</span><span class="nv">$PWD</span> &gt;&gt; .envrc
+$ direnv allow
+
+$ ls -alh
+total <span class="m">8</span>
+drwxr-xr-x   <span class="m">5</span> user  staff   160B  <span class="m">2</span>  <span class="m">5</span> 17:30 .
+drwxr-xr-x  <span class="m">93</span> user  staff   2.9K  <span class="m">2</span>  <span class="m">5</span> 17:20 ..
+drwxr-xr-x   <span class="m">3</span> user  staff    96B  <span class="m">2</span>  <span class="m">5</span> 17:30 .direnv
+-rw-r--r--   <span class="m">1</span> user  staff    66B  <span class="m">2</span>  <span class="m">5</span> 17:29 .envrc
+drwxr-xr-x   <span class="m">9</span> user  staff   288B  <span class="m">2</span>  <span class="m">5</span> 17:31 .git
+</code></pre></div><p><code>.direnv</code>가 생성되고 그 하위에 python virtual environement 환경이 세팅된다.</p>
+<p>만약 <code>.direnv</code> 가 생기지 않으면 터미널을 종료한 후 다시 해당위치(airflow-devel)로 이동하면 .direnv가 생성될것이다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## airflow 설치를 위한 requirements.txt 파일 생성</span>
+<span class="c1">## pip install apache-airflow 명령어로 바로 설치할 수 있으나, 나중에 추가 모듈을 설치할수 있음으로 파일로 관리하자.</span>
+$ <span class="nb">echo</span> <span class="s1">&#39;apache-airflow==1.10.5&#39;</span> &gt;&gt; requirements.txt
+$ pip install -r ./requirements.txt
+
+<span class="c1">## airflow-dags 를 git submodule을 통해 추가</span>
+<span class="c1">## airflow-dags 프로젝트를 dags라는 디렉토리로 클론</span>
+$ git submodule -b master add <span class="o">{</span>1에서 생성한 git repository<span class="o">}</span>/airflow-dags.git dags
+
+<span class="c1">## airflow에 필요한 DB 테이블들을 생성</span>
+$ airflow initdb
+
+<span class="c1">## initdb 이후에 airflow.cfg, airflow.db, logs, unittests.cfg가 자동으로 생성된것을 볼수 있다.</span>
+$ ls -alh
+total <span class="m">592</span>
+-rw-r--r--  <span class="m">1</span> user  staff    30K  <span class="m">2</span>  <span class="m">5</span> 17:50 airflow.cfg
+-rw-r--r--  <span class="m">1</span> user  staff   216K  <span class="m">2</span>  <span class="m">5</span> 17:52 airflow.db
+drwxr-xr-x  <span class="m">3</span> user  staff    96B  <span class="m">2</span>  <span class="m">5</span> 17:48 dags
+drwxr-xr-x  <span class="m">3</span> user  staff    96B  <span class="m">2</span>  <span class="m">5</span> 17:50 logs
+-rw-r--r--  <span class="m">1</span> user  staff    23B  <span class="m">2</span>  <span class="m">5</span> 17:36 requirements.txt
+-rw-r--r--  <span class="m">1</span> user  staff   2.5K  <span class="m">2</span>  <span class="m">5</span> 17:50 unittests.cfg
+
+</code></pre></div><h2 id="3-airflow-설정">3. Airflow 설정</h2>
+<pre><code>## airflow.cfg를 열어 아래의 내용을 설정한다.
+# airflow의 기본 예제 dag를 로드할지 안할지
+load_examples = False
+# backfill 기능 on/off
+catchup_by_default = False
+# timezone
+default_timezone = Asia/Seoul
+# 얼마나 자주 dags 디렉토리를 스캔할껀지 설정
+# dag 파일을 생성하고 아래와 같은 시간이 지나면 자동으로 web에 노출됨
+# 테스트 환경이니 더 짧게 가져가도 상관없음, 현재는 10초
+dag_dir_list_interval = 10
+</code></pre><h2 id="4-gitignore-설정">4. gitignore 설정</h2>
+<p>airflow-devel Repository를 다른 팀원들과 함께 사용하기 위해서는 airflow 설치시 생성되는 것들을 git에 커밋되지 않도록 ignore 시켜줘야 한다.</p>
+<pre><code>## .gitignore 생성
+airflow.cfg
+airflow.db
+airflow-webserver.pid
+unittests.cfg
+.idea
+logs
+venv
+*.iml
+.envrc
+.direnv
+dist
+airflow.egg-info
+build
+</code></pre><h2 id="5-airflow-실행">5. Airflow 실행</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ nohup airflow webserver &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+$ nohup airflow scheduler &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div><p>만약 <code>load_examples</code>를 False로 설정했음에도 예제 dag들이 웹에 보인다면 <code>airflow resetdb</code> 를 실행하여 db를 초기화하고 다시 airflow를 실행하면 된다.</p>
+<p>이제 http://localhost:8080 으로 접속하면 로컬에 설정한 airflow에 접속 가능하다.</p>
+<h2 id="기타">기타</h2>
+<p>혼자서 개발하는 환경이라면 하나하나 설정해도 별 이슈가 없지만, 팀원들이 함께 개발환경을 공유해야 할 경우, 위의 단계를 하나하나 진행하라고 하는것은 너무 불편한 일이다. 따라서 스크립트를 만들고 해당 스크립트를 실행하여 한방에 airflow 설치가 되도록 하자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone https://github.com/krespo/airflow-devel.git
+$ <span class="nb">cd</span> airflow-devel
+$ ./sbin/setup.sh
+</code></pre></div><p>설치 후 airflow.cfg를 수정하고 실행하면 된다.</p>
+<p>실제 소스는 <a href="https://github.com/krespo/airflow-devel">https://github.com/krespo/airflow-devel</a>에서 확인 할 수 있다. 필요하다면 위의 코드를 fork 떠서 사용하면 된다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] BashOperator 확장을 통한 Spark Custom Operator</title>
+			<link>https://krespo.github.io/posts/airflow/spark-custom-operator/</link>
+			<pubDate>Wed, 05 Feb 2020 11:06:09 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/spark-custom-operator/</guid>
+			<description>이전 포스팅을 통해 SparkSubmitOperator을 사용해보았다. 하지만 포스팅 말미에도 적어놓았지만 SparkSubmitOperator</description>
+			<content type="html"><![CDATA[<p>이전 포스팅을 통해 <a href="/posts/airflow/spark-submit-and-airflow">SparkSubmitOperator</a>을 사용해보았다. 하지만 포스팅 말미에도 적어놓았지만 SparkSubmitOperator의 이슈때문에(yarn queue를 지정하기 어려운점) BashOperator를 상속하여 SparkBashOperator를 만들어 보았다.</p>
+<p>BashOperator를 이용하여 spark_submit을 직접 호출하는 형태임으로, 상황에 따라 Spark Binary, Hadoop Binary, Hadoop Config 등 설정이 필요하다.</p>
+<h2 id="전체-코드">전체 코드</h2>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">airflow.operators.bash_operator</span> <span class="kn">import</span> <span class="n">BashOperator</span>
+<span class="kn">from</span> <span class="nn">airflow.utils.decorators</span> <span class="kn">import</span> <span class="n">apply_defaults</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="k">class</span> <span class="nc">SparkBashOperator</span><span class="p">(</span><span class="n">BashOperator</span><span class="p">)</span><span class="p">:</span>
+
+    <span class="nd">@apply_defaults</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">spark_opts</span><span class="o">=</span><span class="p">[</span><span class="p">]</span><span class="p">,</span>
+            <span class="n">driver_cores</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">driver_memory</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">2g</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">executor_cores</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">5</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">num_executors</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">1</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">executor_memory</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">5g</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">max_attempts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">yarn_queue</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">root.default</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">spark_class</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">jar</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">keytab</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">principal</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">&#34;</span><span class="p">,</span>
+            <span class="n">job_args</span><span class="o">=</span><span class="p">[</span><span class="p">]</span><span class="p">,</span>
+            <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">*</span><span class="o">*</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-</span><span class="o">&gt;</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SparkBashOperator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">bash_command</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">&#34;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">*</span><span class="o">*</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">driver_cores</span> <span class="o">=</span> <span class="n">driver_cores</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">driver_memory</span> <span class="o">=</span> <span class="n">driver_memory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">executor_cores</span> <span class="o">=</span> <span class="n">executor_cores</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nun_executors</span> <span class="o">=</span> <span class="n">num_executors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">executor_memory</span> <span class="o">=</span> <span class="n">executor_memory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_attempts</span> <span class="o">=</span> <span class="n">max_attempts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">yarn_queue</span> <span class="o">=</span> <span class="n">yarn_queue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spark_class</span> <span class="o">=</span> <span class="n">spark_class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">jar</span> <span class="o">=</span> <span class="n">jar</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keytab</span> <span class="o">=</span> <span class="n">keytab</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principal</span> <span class="o">=</span> <span class="n">principal</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">job_args</span> <span class="o">=</span> <span class="n">job_args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spark_opts</span> <span class="o">=</span> <span class="n">spark_opts</span>
+
+    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span><span class="p">:</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">            spark-submit --master yarn </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --deploy-mode cluster </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --driver-cores {driver_cores} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --driver-memory {driver_memory} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --executor-cores {executor_cores} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --num-executors {nun_executors} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --executor-memory {executor_memory} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --keytab {keytab} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --principal {principal} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --conf spark.yarn.maxAppAttempts={max_attempts} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            {spark_opts} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --queue {yarn_queue} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            --class {spark_class} </span><span class="se">\
+</span><span class="se"></span><span class="s2">            {jar} {job_args}</span><span class="s2">
+</span><span class="s2"></span><span class="s2">            </span><span class="s2">&#34;&#34;&#34;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">driver_cores</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">driver_cores</span><span class="p">,</span>
+                       <span class="n">driver_memory</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">driver_memory</span><span class="p">,</span>
+                       <span class="n">executor_cores</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">executor_cores</span><span class="p">,</span>
+                       <span class="n">nun_executors</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nun_executors</span><span class="p">,</span>
+                       <span class="n">executor_memory</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">executor_memory</span><span class="p">,</span>
+                       <span class="n">max_attempts</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_attempts</span><span class="p">,</span>
+                       <span class="n">yarn_queue</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">yarn_queue</span><span class="p">,</span>
+                       <span class="n">spark_class</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">spark_class</span><span class="p">,</span>
+                       <span class="n">jar</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">jar</span><span class="p">,</span>
+                       <span class="n">keytab</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">keytab</span><span class="p">,</span>
+                       <span class="n">principal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">principal</span><span class="p">,</span>
+                       <span class="n">job_args</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1"> </span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_args</span><span class="p">)</span><span class="p">,</span>
+                       <span class="n">spark_opts</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1"> </span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spark_opts</span><span class="p">)</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">bash_command</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">\</span><span class="s2">s</span><span class="s2">\</span><span class="s2">s+</span><span class="s2">&#34;</span><span class="p">,</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2"> </span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">SparkBashOperator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+</code></pre></div><p>코드는 <a href="https://gist.github.com/krespo/c78818559ebe35ac306451bf589ed723">여기</a>에서 확인가능하다.</p>
+<h1 id="사용법">사용법</h1>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">start_date</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retries</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">catchup</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retry_delay</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">spark_args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">driver_cores</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                  <span class="n">driver_memory</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">2g</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">executor_cores</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">5</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">num_executors</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">1</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">executor_memory</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">5g</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">max_attempts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                  <span class="n">yarn_queue</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">default</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">spark_opts</span><span class="o">=</span><span class="p">[</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">--conf </span><span class="se">\&#34;</span><span class="s2">spark.executor.extraJavaOptions=-XX:+PrintGCDetails -XX:+PrintGCTimeStamps</span><span class="se">\&#34;</span><span class="s2">&#34;</span><span class="p">,</span>
+                              <span class="sa"></span><span class="s2">&#34;</span><span class="s2">--conf spark.eventLog.enabled=false</span><span class="s2">&#34;</span>
+                              <span class="p">]</span><span class="p">,</span>
+                  <span class="n">spark_class</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">className</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">jar</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">jar path</span><span class="s2">&#34;</span><span class="p">,</span>
+                  <span class="n">keytab</span><span class="o">=</span><span class="n">var_json</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">keytab</span><span class="s1">&#39;</span><span class="p">]</span><span class="p">,</span>
+                  <span class="n">principal</span><span class="o">=</span><span class="n">var_json</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">principal</span><span class="s1">&#39;</span><span class="p">]</span><span class="p">,</span>
+                  <span class="n">job_args</span><span class="o">=</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">--table=tableName</span><span class="s1">&#39;</span><span class="p">,</span>
+                            <span class="sa"></span><span class="s1">&#39;</span><span class="s1">--prefix=prefix</span><span class="s1">&#39;</span><span class="p">,</span>
+                            <span class="p">]</span><span class="p">,</span>
+                  <span class="p">)</span>
+
+<span class="n">dag</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">default_args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span> <span class="n">schedule_interval</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">@once</span><span class="s2">&#34;</span><span class="p">)</span>
+
+<span class="n">cdl_to_cdp</span> <span class="o">=</span> <span class="n">SparkBashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_bash_operator</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="o">*</span><span class="o">*</span><span class="n">spark_args</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[기타] Chrome NET::ERR_CERT_REVOKED 해결방법</title>
+			<link>https://krespo.github.io/posts/etc/chrome_err_cert_revoked_error/</link>
+			<pubDate>Fri, 31 Jan 2020 16:56:58 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/etc/chrome_err_cert_revoked_error/</guid>
+			<description>Self-signed certificate 인증서를 생성하여 HTTPS를 적용하게 되면 위의 이미지처럼 크롬에서 NET::ERR_CERT_REVOKED 에러가 발생하며 HTTPS 접근이 불가능하다. (Safari나 Firefox에서는 접</description>
+			<content type="html"><![CDATA[<p><img src="ssl_error.png" alt="ssl_error"></p>
+<p><a href="https://en.wikipedia.org/wiki/Self-signed_certificate">Self-signed certificate</a> 인증서를 생성하여 HTTPS를 적용하게 되면 위의 이미지처럼 크롬에서</p>
+<blockquote>
+<p>NET::ERR_CERT_REVOKED</p>
+</blockquote>
+<p>에러가 발생하며 HTTPS 접근이 불가능하다. (Safari나 Firefox에서는 접근 가능하다)</p>
+<h1 id="해결방법">해결방법</h1>
+<ol>
+<li><code>NET::ERR_CERT_REVOKED</code> 에러 페이지의 흰 배경을 마우스로 클릭한다. (해당 크롬 창으로 포커스를 맞춘다)</li>
+<li><code>thisisunsafe</code> 를 키보드로 입력한다.</li>
+</ol>
+<p>주의할점은 <code>thisisunsafe</code>를 입력시에 어떤 인풋박스에 입력하는것이 아니라 허공에(?) 키보드타이핑을 해야한다.(무언가 인풋박스에 입력을 한다던가 하는게 아니다)</p>
+<p>정상적으로 적용이 된다면 해당 키워드를 입력함과 동시에 자동으로 페이지가 리로드 되고 에러페이지 없이 정상적으로 접근된다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Kudu] 시간 기준의 Range Partition 시 주의점(timezone, UTC)</title>
+			<link>https://krespo.github.io/posts/kudu/range-partition/</link>
+			<pubDate>Tue, 14 Jan 2020 13:13:56 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/range-partition/</guid>
+			<description>Kudu는 시간 컬럼을 저장할 때 unixtime_micros를 이용해서 저장한다. 만약 이 컬럼을 통해 연도별,월별,일별 등 시간으로 Range Partitio</description>
+			<content type="html"><![CDATA[<p>Kudu는 시간 컬럼을 저장할 때 <code>unixtime_micros</code>를 이용해서 저장한다.
+만약 이 컬럼을 통해 연도별,월별,일별 등 시간으로 Range Partition을 설정할 경우 주의할 점이 있다.</p>
+<p>Kudu는 질의 엔진이 따로 포함되어 있지 않기 때문에 <a href="%5Bhttps://kudu.apache.org/docs/developing.html#_working_examples">kudu-client</a> 라이브러리를 사용하여 테이블 생성 및 파티션을 설정하거나, <code>Impala</code> <code>Hive</code> <code>Presto</code> 와 같은 질의엔진을 통해 <code>CREATE TABLE</code> DDL을 통해 테이블을 생성할 수 있다.</p>
+<p>이때 질의 엔진을 통해 테이블을 생성할 경우 주의해야 한다.</p>
+<p>만약 아래와 같이 날짜를 기준으로 파티션을 했다고 가정해보자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-sql" data-lang="sql"><span class="c1">-- query with presto
+</span><span class="c1"></span><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">sample</span> <span class="p">(</span>
+    <span class="n">update_ts</span> <span class="k">timestamp</span> <span class="k">WITH</span> <span class="p">(</span> <span class="n">primary_key</span> <span class="o">=</span> <span class="k">true</span> <span class="p">)</span><span class="p">,</span>
+    <span class="n">name</span> <span class="nb">varchar</span> <span class="k">WITH</span> <span class="p">(</span> <span class="k">nullable</span> <span class="o">=</span> <span class="k">true</span> <span class="p">)</span>
+ <span class="p">)</span>
+ <span class="k">WITH</span> <span class="p">(</span>
+    <span class="n">number_of_replicas</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">partition_by_range_columns</span> <span class="o">=</span> <span class="nb">ARRAY</span><span class="p">[</span><span class="s1">&#39;</span><span class="s1">update_ts</span><span class="s1">&#39;</span><span class="p">]</span><span class="p">,</span>
+    <span class="n">range_partitions</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="s1">[
+</span><span class="s1">      {&#34;lower&#34;:&#34;2020-01-14T00:00:00.000Z&#34;,&#34;upper&#34;:&#34;2020-01-15T00:00:00.000Z&#34;}
+</span><span class="s1">      ,{&#34;lower&#34;:&#34;2020-01-15T00:00:00.000Z&#34;,&#34;upper&#34;:&#34;2020-01-16T00:00:00.000Z&#34;}
+</span><span class="s1">    ]</span><span class="s1">&#39;</span>
+ <span class="p">)</span>
+</code></pre></div><p>위와 같이 만들고 아래와 같은 코드로 row1, row2의 데이터를 집어넣어보면</p>
+<div class="highlight"><pre class="chroma"><code class="language-java" data-lang="java"><span class="n">KuduClient</span> <span class="n">client</span> <span class="o">=</span> <span class="k">new</span> <span class="n">KuduClient</span><span class="o">.</span><span class="na">KuduClientBuilder</span><span class="o">(</span><span class="s">&#34;master server&#34;</span><span class="o">)</span><span class="o">.</span><span class="na">build</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">LocalDateTime</span> <span class="n">currentDate</span> <span class="o">=</span> <span class="n">LocalDateTime</span><span class="o">.</span><span class="na">now</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+
+<span class="c1">//현재 날짜 : 2020-01-14T14:00:50.897
+</span><span class="c1"></span><span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">currentDate</span><span class="o">)</span><span class="o">;</span>        
+
+<span class="n">KuduTable</span> <span class="n">table</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">openTable</span><span class="o">(</span><span class="s">&#34;sample&#34;</span><span class="o">)</span><span class="o">;</span>
+<span class="n">KuduSession</span> <span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">newSession</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+
+<span class="c1">//현재시간으로 데이터 삽입
+</span><span class="c1"></span><span class="n">Insert</span> <span class="n">insert1</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="na">newInsert</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+<span class="n">PartialRow</span> <span class="n">row1</span> <span class="o">=</span> <span class="n">insert1</span><span class="o">.</span><span class="na">getRow</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+<span class="n">row1</span><span class="o">.</span><span class="na">addTimestamp</span><span class="o">(</span><span class="s">&#34;update_ts&#34;</span><span class="o">,</span> <span class="n">Timestamp</span><span class="o">.</span><span class="na">valueOf</span><span class="o">(</span><span class="n">currentDate</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+<span class="n">row1</span><span class="o">.</span><span class="na">addString</span><span class="o">(</span><span class="s">&#34;name&#34;</span><span class="o">,</span> <span class="s">&#34;row1&#34;</span><span class="o">)</span><span class="o">;</span>
+
+<span class="c1">//현재시간보다 6시간 이전 시간으로 데이터 삽입
+</span><span class="c1"></span><span class="n">Insert</span> <span class="n">insert2</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="na">newInsert</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+<span class="n">PartialRow</span> <span class="n">row2</span> <span class="o">=</span> <span class="n">insert2</span><span class="o">.</span><span class="na">getRow</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+<span class="n">row2</span><span class="o">.</span><span class="na">addTimestamp</span><span class="o">(</span><span class="s">&#34;update_ts&#34;</span><span class="o">,</span> <span class="n">Timestamp</span><span class="o">.</span><span class="na">valueOf</span><span class="o">(</span><span class="n">currentDate</span><span class="o">.</span><span class="na">minusHours</span><span class="o">(</span><span class="n">6</span><span class="o">)</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+<span class="n">row2</span><span class="o">.</span><span class="na">addString</span><span class="o">(</span><span class="s">&#34;name&#34;</span><span class="o">,</span> <span class="s">&#34;row2&#34;</span><span class="o">)</span><span class="o">;</span>
+
+
+<span class="n">session</span><span class="o">.</span><span class="na">apply</span><span class="o">(</span><span class="n">insert1</span><span class="o">)</span><span class="o">;</span>
+<span class="n">session</span><span class="o">.</span><span class="na">apply</span><span class="o">(</span><span class="n">insert2</span><span class="o">)</span><span class="o">;</span>
+</code></pre></div><p>row1과 row2 데이터가 들어가 있어야 할것 같지만 실제로는</p>
+<pre><code>presto:&gt; select * from sample
+         -&gt; ;
+        update_ts        | name
+-------------------------+------
+ 2020-01-14 14:01:20.949 | row1
+</code></pre><p>row1 데이터만 들어간것을 볼수 있다.</p>
+<h1 id="왜-그럴까">왜 그럴까?</h1>
+<p>데이터가 저장되지 않은 row2를 보면,</p>
+<blockquote>
+<p>row2.addTimestamp(&ldquo;update_ts&rdquo;, Timestamp.valueOf(currentDate.minusHours(6))); ==&gt; 현재시간(14:00) - 6시간 = AM 8시</p>
+</blockquote>
+<p>range partition의 대상이 되는 컬럼인 <code>update_ts</code>는 오전 8시가 된다.</p>
+<p>Kudu는 시간 기준의 Range Partition을 구성할때 UTC시간으로 계산하고, 대한민국은 UTC+9 시간이기 때문에</p>
+<blockquote>
+<p>update_ts(AM 8시) - 9시간 = 13일 23시</p>
+</blockquote>
+<p>로 파티션을 선택하여 저장하게 된다.</p>
+<p>우리는 위의 DDL에서 14일, 15일에 대한 파티션만 지정했음으로, 13일 23시의 데이터는 저장하고자 하는 파티션이 없기 때문에 저장이 안되고 없어지게 된다.</p>
+<h1 id="어떻게-해결할까">어떻게 해결할까?</h1>
+<p>해결책은 단순하다.</p>
+<p>Range Partition을 설정할때 <code>2020-01-14T00:00:00.000Z</code> 으로 설정하는 것이 아니라 -9 시간을 한
+<code>2020-01-13T15:00:00.000Z</code> 로 설정하면 된다.</p>
+<p>이 글의 초반에도 이야기 했지만, 위와 같은 이슈는 질의엔진을 통해 테이블을 생성할 때 발생되는 이슈이고, 만약 <code>kudu-client</code>를 이용해서 코드를 통해 테이블을 생성한다면 자동으로 지정시간 - 9로 자동으로 설정되기 때문에 따로 주의하지 않아도 된다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-java" data-lang="java"><span class="n">KuduClient</span> <span class="n">client</span> <span class="o">=</span> <span class="k">new</span> <span class="n">KuduClient</span><span class="o">.</span><span class="na">KuduClientBuilder</span><span class="o">(</span><span class="s">&#34;kudu master&#34;</span><span class="o">)</span><span class="o">.</span><span class="na">build</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">Schema</span> <span class="n">schema</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Schema</span><span class="o">(</span><span class="n">Arrays</span><span class="o">.</span><span class="na">asList</span><span class="o">(</span>
+        <span class="k">new</span> <span class="n">ColumnSchema</span><span class="o">.</span><span class="na">ColumnSchemaBuilder</span><span class="o">(</span><span class="s">&#34;update_ts&#34;</span><span class="o">,</span> <span class="n">Type</span><span class="o">.</span><span class="na">UNIXTIME_MICROS</span><span class="o">)</span><span class="o">.</span><span class="na">key</span><span class="o">(</span><span class="kc">true</span><span class="o">)</span><span class="o">.</span><span class="na">build</span><span class="o">(</span><span class="o">)</span>
+        <span class="o">,</span> <span class="k">new</span> <span class="n">ColumnSchema</span><span class="o">.</span><span class="na">ColumnSchemaBuilder</span><span class="o">(</span><span class="s">&#34;name&#34;</span><span class="o">,</span> <span class="n">Type</span><span class="o">.</span><span class="na">STRING</span><span class="o">)</span><span class="o">.</span><span class="na">nullable</span><span class="o">(</span><span class="kc">true</span><span class="o">)</span><span class="o">.</span><span class="na">build</span><span class="o">(</span><span class="o">)</span>
+<span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">CreateTableOptions</span> <span class="n">cto</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CreateTableOptions</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+
+<span class="c1">//14일, 15일 16일의 PartialRow를 만들고
+</span><span class="c1"></span><span class="c1">//14~15일, 15~16일 파티션을 생성한다.
+</span><span class="c1"></span><span class="n">List</span><span class="o">&lt;</span><span class="n">PartialRow</span><span class="o">&gt;</span> <span class="n">rangePartitions</span> <span class="o">=</span> <span class="n">IntStream</span><span class="o">.</span><span class="na">rangeClosed</span><span class="o">(</span><span class="n">14</span><span class="o">,</span> <span class="n">16</span><span class="o">)</span><span class="o">.</span><span class="na">mapToObj</span><span class="o">(</span><span class="n">date</span> <span class="o">-</span><span class="o">&gt;</span><span class="o">{</span>
+    <span class="n">PartialRow</span> <span class="n">row</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="na">newPartialRow</span><span class="o">(</span><span class="o">)</span><span class="o">;</span>
+    <span class="n">row</span><span class="o">.</span><span class="na">addTimestamp</span><span class="o">(</span><span class="s">&#34;update_ts&#34;</span><span class="o">,</span> <span class="n">Timestamp</span><span class="o">.</span><span class="na">valueOf</span><span class="o">(</span><span class="n">LocalDateTime</span><span class="o">.</span><span class="na">parse</span><span class="o">(</span><span class="s">&#34;2020-01-&#34;</span> <span class="o">+</span> <span class="n">date</span> <span class="o">+</span> <span class="s">&#34; 00:00:00&#34;</span><span class="o">,</span> <span class="n">DateTimeFormatter</span><span class="o">.</span><span class="na">ofPattern</span><span class="o">(</span><span class="s">&#34;yyyy-MM-dd HH:mm:ss&#34;</span><span class="o">)</span><span class="o">)</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+    <span class="k">return</span> <span class="n">row</span><span class="o">;</span>
+<span class="o">}</span><span class="o">)</span><span class="o">.</span><span class="na">collect</span><span class="o">(</span><span class="n">Collectors</span><span class="o">.</span><span class="na">toList</span><span class="o">(</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">cto</span><span class="o">.</span><span class="na">setRangePartitionColumns</span><span class="o">(</span><span class="n">Arrays</span><span class="o">.</span><span class="na">asList</span><span class="o">(</span><span class="s">&#34;update_ts&#34;</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+<span class="n">cto</span><span class="o">.</span><span class="na">addRangePartition</span><span class="o">(</span><span class="n">rangePartitions</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">0</span><span class="o">)</span><span class="o">,</span> <span class="n">rangePartitions</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">1</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+<span class="n">cto</span><span class="o">.</span><span class="na">addRangePartition</span><span class="o">(</span><span class="n">rangePartitions</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">1</span><span class="o">)</span><span class="o">,</span> <span class="n">rangePartitions</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">2</span><span class="o">)</span><span class="o">)</span><span class="o">;</span>
+
+
+<span class="n">client</span><span class="o">.</span><span class="na">createTable</span><span class="o">(</span><span class="s">&#34;sample2&#34;</span><span class="o">,</span> <span class="n">schema</span><span class="o">,</span> <span class="n">cto</span><span class="o">)</span><span class="o">;</span>
+</code></pre></div><p><img src="kudu_partition.png" alt="kudu-range-partition"></p>
+<!-- raw HTML omitted -->
+<p><strong>Value는 변경없이 그대로 저장이 되기 때문에 timezone과 상관없이 사용하면 된다.</strong></p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Nifi]Could Not Generate Extensions Documentation 에러 해결 방법</title>
+			<link>https://krespo.github.io/posts/nifi/could-not-generate-extensions-documentation/</link>
+			<pubDate>Thu, 02 Jan 2020 11:01:41 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/nifi/could-not-generate-extensions-documentation/</guid>
+			<description>커스텀 프로세서 생성 후 mvn clean package를 통해 .nar파일을 생성하는데, 아래와 같은 에러가 발생했다. [ERROR] Could not generate extensions&#39; documentation org.apache.maven.plugin.MojoExecutionException: Failed to create Extension Documentation at org.apache.nifi.NarMojo.generateDocumentation (NarMojo.java:596) at org.apache.nifi.NarMojo.execute (NarMojo.java:499) at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo (DefaultBuildPluginManager.java:137) at</description>
+			<content type="html"><![CDATA[<p>커스텀 프로세서 생성 후 <code>mvn clean package</code>를 통해 .nar파일을 생성하는데, 아래와 같은 에러가 발생했다.</p>
+<pre><code>[ERROR] Could not generate extensions' documentation
+org.apache.maven.plugin.MojoExecutionException: Failed to create Extension Documentation
+    at org.apache.nifi.NarMojo.generateDocumentation (NarMojo.java:596)
+    at org.apache.nifi.NarMojo.execute (NarMojo.java:499)
+    at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo (DefaultBuildPluginManager.java:137)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:210)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:156)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:148)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:117)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:81)
+    at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build (SingleThreadedBuilder.java:56)
+    at org.apache.maven.lifecycle.internal.LifecycleStarter.execute (LifecycleStarter.java:128)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:305)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:192)
+    at org.apache.maven.DefaultMaven.execute (DefaultMaven.java:105)
+    at org.apache.maven.cli.MavenCli.execute (MavenCli.java:956)
+    at org.apache.maven.cli.MavenCli.doMain (MavenCli.java:288)
+    at org.apache.maven.cli.MavenCli.main (MavenCli.java:192)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0 (Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke (NativeMethodAccessorImpl.java:62)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke (DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke (Method.java:498)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced (Launcher.java:282)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launch (Launcher.java:225)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode (Launcher.java:406)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.main (Launcher.java:347)
+Caused by: java.lang.NullPointerException
+    at org.apache.nifi.NarMojo.getRequiredServiceDefinitions (NarMojo.java:708)
+    at org.apache.nifi.NarMojo.writeDocumentation (NarMojo.java:634)
+    at org.apache.nifi.NarMojo.writeDocumentation (NarMojo.java:605)
+    at org.apache.nifi.NarMojo.generateDocumentation (NarMojo.java:577)
+    at org.apache.nifi.NarMojo.execute (NarMojo.java:499)
+    at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo (DefaultBuildPluginManager.java:137)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:210)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:156)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:148)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:117)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:81)
+    at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build (SingleThreadedBuilder.java:56)
+    at org.apache.maven.lifecycle.internal.LifecycleStarter.execute (LifecycleStarter.java:128)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:305)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:192)
+    at org.apache.maven.DefaultMaven.execute (DefaultMaven.java:105)
+    at org.apache.maven.cli.MavenCli.execute (MavenCli.java:956)
+    at org.apache.maven.cli.MavenCli.doMain (MavenCli.java:288)
+    at org.apache.maven.cli.MavenCli.main (MavenCli.java:192)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0 (Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke (NativeMethodAccessorImpl.java:62)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke (DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke (Method.java:498)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced (Launcher.java:282)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launch (Launcher.java:225)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode (Launcher.java:406)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.main (Launcher.java:347)
+</code></pre><p>위와 같은 문제 발생시 커스텀 프로세서 프로젝트 하위의 <code>xxx-processors</code> 프로젝트에 디펜던시 추가를 하여 해결 가능하다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-xml" data-lang="xml"><span class="nt">&lt;dependency</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;groupId</span><span class="nt">&gt;</span>org.apache.nifi<span class="nt">&lt;/groupId&gt;</span>
+    <span class="nt">&lt;artifactId</span><span class="nt">&gt;</span>nifi-standard-services-api-nar<span class="nt">&lt;/artifactId&gt;</span>
+    <span class="nt">&lt;version</span><span class="nt">&gt;</span>${nifi.version}<span class="nt">&lt;/version&gt;</span>
+    <span class="nt">&lt;type</span><span class="nt">&gt;</span>nar<span class="nt">&lt;/type&gt;</span>
+<span class="nt">&lt;/dependency&gt;</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Java] invalid source release 에러 해결</title>
+			<link>https://krespo.github.io/posts/java/invalid-source-release-error/</link>
+			<pubDate>Thu, 02 Jan 2020 10:21:11 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/java/invalid-source-release-error/</guid>
+			<description>Error:java: invalid source release: 11 프로젝트를 진행하다보면 위와같은 에러를 보일때가 있는데, Intellij의 설정을 수정하여 해결할 수 있다. 1. Language Level 수정 Intellij에서 File</description>
+			<content type="html"><![CDATA[<blockquote>
+<p>Error:java: invalid source release: 11</p>
+</blockquote>
+<p>프로젝트를 진행하다보면 위와같은 에러를 보일때가 있는데, Intellij의 설정을 수정하여 해결할 수 있다.</p>
+<h2 id="1-language-level-수정">1. Language Level 수정</h2>
+<p>Intellij에서 <code>File -&gt; Project Structure -&gt; Project Settings -&gt; Project</code> 메뉴의 <code>Project Language Level</code> 을 수정한다</p>
+<p><img src="error1.png" alt="error1"></p>
+<p>그리고 <code>File -&gt; Project Structure -&gt; Project Settings -&gt; Modules</code> 메뉴의 <code>Source Language Level</code>을 수정한다.</p>
+<p><img src="error2.png" alt="error2"></p>
+<h2 id="2-java-compiler-수정">2. Java Compiler 수정</h2>
+<p>Intellij에서 <code>Preference -&gt; Build,Execution,Deployment -&gt; Compiler -&gt; Java Compiler</code>의 <code>Target bytescode version</code>을 수정해준다.</p>
+<p><img src="error3.png" alt="error3"></p>
+<h2 id="3-maven-설정-추가">3. Maven 설정 추가</h2>
+<p>위와 같이 수정을 하면 동작을 하는데, 빌드를 수행하거나, 메이븐 설정이 변경되어 내부적으로 refresh가 되는경우 위의 모든 설정이 초기값으로 변경된다. 이때는 maven에 설정을 통해 버전을 지정해 줄 수 있다.</p>
+<p>방법 1. properties 수정</p>
+<div class="highlight"><pre class="chroma"><code class="language-xml" data-lang="xml"><span class="nt">&lt;project</span><span class="nt">&gt;</span>
+  [...]
+  <span class="nt">&lt;properties</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;maven.compiler.source</span><span class="nt">&gt;</span>1.8<span class="nt">&lt;/maven.compiler.source&gt;</span>
+    <span class="nt">&lt;maven.compiler.target</span><span class="nt">&gt;</span>1.8<span class="nt">&lt;/maven.compiler.target&gt;</span>
+  <span class="nt">&lt;/properties&gt;</span>
+  [...]
+<span class="nt">&lt;/project&gt;</span>
+</code></pre></div><p>방법 2. maven-compiler-plugin에 버전 지정</p>
+<div class="highlight"><pre class="chroma"><code class="language-xml" data-lang="xml"><span class="nt">&lt;project</span><span class="nt">&gt;</span>
+  [...]
+  <span class="nt">&lt;build</span><span class="nt">&gt;</span>
+    [...]
+    <span class="nt">&lt;plugins</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;plugin</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;groupId</span><span class="nt">&gt;</span>org.apache.maven.plugins<span class="nt">&lt;/groupId&gt;</span>
+        <span class="nt">&lt;artifactId</span><span class="nt">&gt;</span>maven-compiler-plugin<span class="nt">&lt;/artifactId&gt;</span>
+        <span class="nt">&lt;version</span><span class="nt">&gt;</span>3.8.1<span class="nt">&lt;/version&gt;</span>
+        <span class="nt">&lt;configuration</span><span class="nt">&gt;</span>
+          <span class="nt">&lt;source</span><span class="nt">&gt;</span>1.8<span class="nt">&lt;/source&gt;</span>
+          <span class="nt">&lt;target</span><span class="nt">&gt;</span>1.8<span class="nt">&lt;/target&gt;</span>
+        <span class="nt">&lt;/configuration&gt;</span>
+      <span class="nt">&lt;/plugin&gt;</span>
+    <span class="nt">&lt;/plugins&gt;</span>
+    [...]
+  <span class="nt">&lt;/build&gt;</span>
+  [...]
+<span class="nt">&lt;/project&gt;</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Nifi] Custom Processor 생성 및 테스트 With Docker</title>
+			<link>https://krespo.github.io/posts/nifi/create-custom-processor/</link>
+			<pubDate>Wed, 18 Dec 2019 20:17:52 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/nifi/create-custom-processor/</guid>
+			<description>nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하</description>
+			<content type="html"><![CDATA[<p>nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하는 방법을 적용해 보았다.</p>
+<h1 id="1-프로젝트-생성">1. 프로젝트 생성</h1>
+<p>아래는 maven이 설치 된 환경에서 진행했으며, maven이 설치되지 않았다면 <a href="https://maven.apache.org/install.html">Installing Apache Maven</a> 을 참고하여 maven을 설치하고 진행하도록 하자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ mvn archetype:generate
+
+<span class="c1">## 아래와 같이 Choose a number .. 라고 나오면 nifi를 입력하여 nifi archetype을 검색하자.</span>
+Choose a number or apply filter <span class="o">(</span>format: <span class="o">[</span>groupId:<span class="o">]</span>artifactId, <span class="k">case</span> sensitive contains<span class="o">)</span>: 1462: nifi
+
+<span class="c1">## 이번에는 custom processor를 만들 것이기 때문에 nifi-processor-bundle-archetype을 선택하자.</span>
+Choose archetype:
+1: remote -&gt; org.apache.nifi:nifi-processor-bundle-archetype <span class="o">(</span>-<span class="o">)</span>
+2: remote -&gt; org.apache.nifi:nifi-service-bundle-archetype <span class="o">(</span>-<span class="o">)</span>
+Choose a number or apply filter <span class="o">(</span>format: <span class="o">[</span>groupId:<span class="o">]</span>artifactId, <span class="k">case</span> sensitive contains<span class="o">)</span>: : <span class="m">1</span>
+
+<span class="c1">## 아키타입 버전이 나오는데, 현재 사용중인 클러스터의 버전과 동일하게 선택한다.</span>
+Choose org.apache.nifi:nifi-processor-bundle-archetype version:
+1: 0.0.2-incubating
+2: 0.1.0-incubating
+3: 0.2.0-incubating
+4: 0.2.1
+5: 0.3.0
+6: 0.4.0
+7: 0.4.1
+8: 0.5.0
+9: 0.5.1
+10: 0.6.0
+11: 0.6.1
+12: 0.7.0
+13: 0.7.1
+14: 0.7.2
+15: 0.7.3
+16: 0.7.4
+17: 1.0.0-BETA
+18: 1.0.0
+19: 1.0.1
+20: 1.1.0
+21: 1.1.1
+22: 1.1.2
+23: 1.2.0
+24: 1.3.0
+25: 1.4.0
+26: 1.5.0
+27: 1.6.0
+28: 1.7.0
+29: 1.7.1
+30: 1.8.0
+31: 1.9.0
+32: 1.9.1
+33: 1.9.2
+34: 1.10.0
+Choose a number: 34: <span class="m">34</span>
+
+<span class="c1">## 아래와 같이 groupId, artifactId, version, artifactBaseName, parckage를 입력하여 프로젝트를 생성</span>
+<span class="c1">## 아래와 같은 파라미터로 프로젝트를 생성하면 프로젝트 디렉토리명은 artifactId로 생성이 되고, 해당 프로젝트 하위로 들어가면(여기서는 my-custom-project)</span>
+<span class="c1">## nifi-{artifactBaseName}-nar 와 nifi-{artifactBaseName}-processors 프로젝트가 생성된 것을 볼수 있다.</span>
+Choose a number: 34: <span class="m">34</span>
+Define value <span class="k">for</span> property <span class="s1">&#39;groupId&#39;</span>: io.github.krespo
+Define value <span class="k">for</span> property <span class="s1">&#39;artifactId&#39;</span>: my-custom-processor
+Define value <span class="k">for</span> property <span class="s1">&#39;version&#39;</span> 1.0-SNAPSHOT: :
+Define value <span class="k">for</span> property <span class="s1">&#39;artifactBaseName&#39;</span>: custom
+Define value <span class="k">for</span> property <span class="s1">&#39;package&#39;</span> io.github.krespo.processors.custom: : io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Using property: <span class="nv">nifiVersion</span> <span class="o">=</span> 1.10.0
+Confirm properties configuration:
+groupId: io.github.krespo
+artifactId: my-custom-processor
+version: 1.0-SNAPSHOT
+artifactBaseName: custom
+package: io.github.krespo
+nifiVersion: 1.10.0
+ Y: : y
+<span class="o">[</span>INFO<span class="o">]</span> ----------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Using following parameters <span class="k">for</span> creating project from Archetype: nifi-processor-bundle-archetype:1.10.0
+<span class="o">[</span>INFO<span class="o">]</span> ----------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: groupId, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactId, Value: my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: version, Value: 1.0-SNAPSHOT
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: package, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: packageInPathFormat, Value: io/github/krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: package, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactBaseName, Value: custom
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: version, Value: 1.0-SNAPSHOT
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: groupId, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactId, Value: my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: nifiVersion, Value: 1.10.0
+<span class="o">[</span>INFO<span class="o">]</span> Project created from Archetype in dir: /Users/louis/git/my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> BUILD SUCCESS
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Total time:  02:01 min
+<span class="o">[</span>INFO<span class="o">]</span> Finished at: 2019-12-18T21:33:44+09:00
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+
+</code></pre></div><h1 id="2-maven-package를-이용하여-nar파일-생성">2. Maven package를 이용하여 nar파일 생성</h1>
+<p>프로젝트를 생성한 후 생성된 프로젝트로 이동하여 패키징을 하여 nar파일을 생성한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">cd</span> my-custom-processor
+$ mvn clean package
+</code></pre></div><p>maven package를 진행하면 my-custom-processor/my-custom-nar/target 에 .nar 가 생성되는데, 이렇게 생성된 nar 파일을 nifi_설치경로/lib에 복사하고 nifi를 재시작 하면 nifi 커스텀 프로세서가 로드가 된다.
+하지만 지금은 로컬에 도커를 이용하여 nifi를 실행시킬 것이기 때문에 아래와 같은 작업으로 nar 파일을 nifi 도커 컨테이너에 적용하면 된다.</p>
+<h1 id="3-docker를-이용하여-nifi-컨테이너-생성-및-실행">3. Docker를 이용하여 nifi 컨테이너 생성 및 실행</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker pull apache/nifi:1.10.0
+<span class="c1">## nifi 컨테이너를 생성한다. maven 빌드를 통해 생성된 nifi-custom-nar-1.0-SNAPSHOT.nar 파일을 도커 컨테이너의 sample.nar로 심볼릭링크를 걸듯이 작업한다.</span>
+$ docker create --name nifi -p 8080:8080 -v <span class="si">${</span><span class="nv">nifi_maven_project</span><span class="p"> 경로</span><span class="si">}</span>/nifi-custom-nar/target/nifi-custom-nar-1.0-SNAPSHOT.nar:/opt/nifi/nifi-1.10.0/lib/sample.nar apache/nifi:1.10.0
+
+$ docker start nifi
+</code></pre></div><h1 id="4-nifi-페이지에서-커스텀프로세서-확인">4. nifi 페이지에서 커스텀프로세서 확인</h1>
+<p>http://localhost:8080/nifi/ 를 웹브라우저에서 실행 한후 Processor 등록화면서 My로 검색하면 아래와 같이 테스트로 생성한 커스텀 프로세서가 제대로 검색되는것을 볼수 있다.</p>
+<p><img src="custom-processor.png" alt="add processor"></p>
+<h1 id="4-커스텀-프로세서-재배포-방법">4. 커스텀 프로세서 재배포 방법</h1>
+<p>커스텀 프로세서의 로직을 수정했다면 아래와 같이 메이븐 빌드 후, nifi 컨테이너를 재시작시키는 작업 만으로 변경된 프로세서를 등록할 수 있다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ maven clean package
+$ docker restart nifi
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition</title>
+			<link>https://krespo.github.io/posts/kafka/skew-reassign-partition/</link>
+			<pubDate>Wed, 11 Dec 2019 16:16:49 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kafka/skew-reassign-partition/</guid>
+			<description>kafka-manager에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다. 그럼 Skew는 무엇일까? Skew는 카프</description>
+			<content type="html"><![CDATA[<p><a href="https://github.com/yahoo/kafka-manager">kafka-manager</a>에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다.</p>
+<p><img src="kafka-reassign-2.png" alt="kafka-skewed"></p>
+<h2 id="그럼-skew는-무엇일까">그럼 Skew는 무엇일까?</h2>
+<p>Skew는 카프카 토픽의 파티션들이 각 브로커 서버에 균등하게 나눠지는것이 아니라, 한쪽으로 치우친 현상으로 <code>Skew</code>라고 한다.
+또한 각 파티션들의 리플리케이션에 의해 <code>Leader Partition/Follower Partition</code> 으로 나누는데, Leader Partition이 각 브로커에 균등하게 분산되지 않은것을 <code>Leader Skew</code> 라고 한다.</p>
+<p><img src="kafka-broker1.png" alt="kafka-broker"></p>
+<p>위 그림은 kafka broker : 3, partition: 3, replication factor: 2 일때 이상적으로 분산된 상태이다.
+이 상태에서 일부 브로커서버를 재시작 하게 되면 파티션 들이 HA를 위하여 live 된 브로커로 이동하게 되는데 이때 skew가 발생하게 된다.</p>
+<p><img src="kafka-broker2.png" alt="kafka-broker"></p>
+<p>그림에서 보는것과 같이 브로커당 파티션이 2개씩 할당이 되어야 하지만, 1002 브로커에 파티션이 3개가 할당되었기 때문에 Skew가 발생된 상황이다. Leader partition 또한 각 브로커에 1개씩 할당되어야 하지만, 1002 브로커에 2개의 Leader partition이 몰려있기 때문에 Leader Skew 가 발생한 상태이다.</p>
+<h2 id="skew를-해결할-수-있는-방법은-partition-reassign">Skew를 해결할 수 있는 방법은? Partition Reassign</h2>
+<p>한쪽으로 몰린 Skew를 해결하기 위해서는 카프카에서 제공하는 Partition Reassign을 이용하여 파티션을 재배치 해주면 된다.</p>
+<p><img src="kafka-broker3.png" alt="kafka-broker"></p>
+<h3 id="1-kafka-reassign-partitions-사용하는-방법">1) kafka-reassign-partitions 사용하는 방법</h3>
+<p>카프카에서 기본적으로 제공해주는 스크립트 중에 <code>kafka-reassign-partitions.sh</code> 라는 스크립트가 존재한다. 해당 스크립트는 json 타입의 파일로 파티셔닝 순서를 적어주고, 해당 파일을 통해 파티션을 재할당 하는 역할을 하게된다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-json" data-lang="json"><span class="p">{</span><span class="nt">&#34;version&#34;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span>
+  <span class="nt">&#34;partitions&#34;</span><span class="p">:</span><span class="p">[</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1002</span><span class="p">,</span><span class="mi">1003</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1003</span><span class="p">,</span><span class="mi">1001</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1001</span><span class="p">,</span><span class="mi">1002</span><span class="p">]</span><span class="p">}</span>
+<span class="p">]</span><span class="p">}</span>
+</code></pre></div><div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bin/kafka-reassign-partitions.sh <span class="se">\
+</span><span class="se"></span>--zookeeper zookeeper:2181 <span class="se">\
+</span><span class="se"></span>--reassignment-json-file ./repiartion.json <span class="se">\
+</span><span class="se"></span>--execute
+</code></pre></div><p>json 내용을 살펴보면 상당히 심플하게 구성된 것을 볼수 있다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="c1">//sample-topic 이라는 토픽의 0번 파티션을 broker.id가 1002, 1003인 브로커로 할당한다.
+</span><span class="c1"></span><span class="c1">//이때 replicas array의 맨 처음이 Leader가 되고, 그 뒷부분은 Follower가 된다.
+</span><span class="c1"></span><span class="p">{</span><span class="s2">&#34;topic&#34;</span><span class="o">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="s2">&#34;partition&#34;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&#34;replicas&#34;</span><span class="o">:</span><span class="p">[</span><span class="mi">1002</span><span class="p">,</span><span class="mi">1003</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+</code></pre></div><h3 id="2-kafka-manager-의-reassign을-사용하는-방법">2) kafka-manager 의 Reassign을 사용하는 방법</h3>
+<p>위의 kafka-reassign-partitions 으로 파티셔닝 하는 방식은 수기로 json파일을 생성해야 하기 때문에 파티션 갯수와 브로커 갯수가 많을수록 작성하기 고통스럽다.</p>
+<p>만약 kafka-manager 가 설치된 상황이라면 kafka-manager에서 제공하는 reassign 기능을 이용하여 손쉽게 재할당을 할 수 있게 된다. (kafka-manager 설치는 <a href="https://krespo.github.io/posts/kafka-manager/install-kafka-manager/">여기</a>에서 확인하자)</p>
+<ol>
+<li>kafka-manager의 상단메뉴에서 Topic -&gt; List -&gt; 재할당 하기 위한 토픽을 선택한다.</li>
+<li><code>Operations</code> 영역의 <code>Manual Partition Assignments</code>를 선택한다.</li>
+<li><img src="partition-reassign.png" alt="partition reassign">와 같이 Partition1-&gt;Replica 0을 Broker 1002에서 1003으로 변경하고 상단의 <code>Save Partition Assignment</code>를 누른다.</li>
+<li>3번의 작업후 바로 재할당 작업이 수행되지 않는다.
+다시 1번의 위치로 이동한 뒤 <code>Reassign Partitions</code> 버튼을 눌러줘야 실제로 파티션의 재할당이 수행된다.</li>
+</ol>
+<p>위와 같은 방식으로 kafka-manager를 설치하면 kafka의 다양한 운영을 쉽게할 수 있으니, 사용하지 않았다면 사용해 보는것도 좋다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Kudu] 4. 인코딩과 압축</title>
+			<link>https://krespo.github.io/posts/kudu/encoding-compression/</link>
+			<pubDate>Tue, 10 Dec 2019 18:22:25 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/encoding-compression/</guid>
+			<description>Kudu에서는 컬럼의 인코딩과 압축을 통해 저장 데이터의 사이즈를 줄여, 디스크 공간을 효율적으로 사용할 수 있도록 하고 있다. 1. 인코딩 인코딩은 테이블 생성 시 컬</description>
+			<content type="html"><![CDATA[<p>Kudu에서는 컬럼의 인코딩과 압축을 통해 저장 데이터의 사이즈를 줄여, 디스크 공간을 효율적으로 사용할 수 있도록 하고 있다.</p>
+<h1 id="1-인코딩">1. 인코딩</h1>
+<p>인코딩은 테이블 생성 시 컬럼의 정의로 지정할 수 있다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-sql" data-lang="sql"><span class="c1">-- query with impala
+</span><span class="c1"></span><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">various_encodings</span>
+<span class="p">(</span>
+  <span class="n">id</span> <span class="nb">BIGINT</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span>
+  <span class="n">c1</span> <span class="nb">BIGINT</span> <span class="k">ENCODING</span> <span class="n">PLAIN_ENCODING</span><span class="p">,</span>
+  <span class="n">c2</span> <span class="nb">BIGINT</span> <span class="k">ENCODING</span> <span class="n">AUTO_ENCODING</span><span class="p">,</span>
+  <span class="n">c3</span> <span class="n">TINYINT</span> <span class="k">ENCODING</span> <span class="n">BIT_SHUFFLE</span><span class="p">,</span>
+  <span class="n">c4</span> <span class="n">DOUBLE</span> <span class="k">ENCODING</span> <span class="n">BIT_SHUFFLE</span><span class="p">,</span>
+  <span class="n">c5</span> <span class="nb">BOOLEAN</span> <span class="k">ENCODING</span> <span class="n">RLE</span><span class="p">,</span>
+  <span class="n">c6</span> <span class="n">STRING</span> <span class="k">ENCODING</span> <span class="n">DICT_ENCODING</span><span class="p">,</span>
+  <span class="n">c7</span> <span class="n">STRING</span> <span class="k">ENCODING</span> <span class="n">PREFIX_ENCODING</span>
+<span class="p">)</span> <span class="n">PARTITION</span> <span class="k">BY</span> <span class="n">HASH</span><span class="p">(</span><span class="n">id</span><span class="p">)</span> <span class="n">PARTITIONS</span> <span class="mi">2</span> <span class="n">STORED</span> <span class="k">AS</span> <span class="n">KUDU</span><span class="p">;</span>
+
+</code></pre></div><h3 id="1-plain-encoding">1) Plain encoding</h3>
+<p>인코딩을 하지 않고 원본 데이터 그대로 저장한다.</p>
+<h3 id="2-bitshuffle-encoding">2) Bitshuffle encoding</h3>
+<p>비트를 재배치 한 뒤 LZ4 방식으로 압축한다. primary key 로 정렬했을때 값이 반복되거나, 순차적으로 증가/감소 하거나, 일부의 값만 변경이 될때 효율적이다.</p>
+<p><img src="bitshuffle.png" alt="bitshuffle encoding">
+컬럼의 값들을 바이너리스트림 형태로 변경 한 후 LZ4로 압축한다.</p>
+<h3 id="3-run-length-encoding">3) Run Length encoding</h3>
+<p>primary key로 정렬 했을때 반복되는 동일한 값을 <code>1개의 값과 반복 횟수만 저장</code>하여 저장크기를 줄이는 인코딩이다.
+동일한 값이 연속적으로 저장될 수록 효율적이다.</p>
+<pre><code>AAAAABBCCCC  ===&gt; A5B2C4 처럼 1개의 값과 반복 횟수만 저장하는 알고리즘이 Run-Length algorithm 이다.
+</code></pre><p><img src="run-length.png" alt="run length encoding"></p>
+<p>그림과 같이 true 연속적으로 50개, false가 연속해서 49개, 다시 true가 1개 나오는 컬럼이 있다고 가정하자. 이때 true는 1로, false는 0으로 바꿀 수 있으며 이를 연속적으로 표현하면
+111111111&hellip;(50개)00000&hellip;(49개)1
+로 표현가능 하다 이를
+Run Length알고리즘으로 풀면 1500491 로 표현할 수 있으며 바이트 스트림으로 만들면 그림의 결과가 된다.</p>
+<h3 id="4-dictionary-encoding">4) Dictionary encoding</h3>
+<p>컬럼의 값으로 Directionary 가 생성되고, 실제 컬럼의 값에는 해당 Dictionary의 인덱스가 저장된다. Dictionary Encoding은 동일한 값이 반복되며, 유니크한 값이 적은 경우 효율적이다.</p>
+<h3 id="5-prefix-encoding">5) Prefix encoding</h3>
+<p>공통된 prefix를 갖는 경우, 변경되는 부분만 저장되는 방식이다.
+예를 들어 <a href="http://krespo.github.io/a.png">http://krespo.github.io/a.png</a> 와 <a href="http://krespo.github.io/b.png">http://krespo.github.io/b.png</a> 가 저장되는 경우, 각 컬럼의 value는 a.png와 b.png만 저장된다.</p>
+<h1 id="2-압축">2. 압축</h1>
+<p>Kudu에서는 인코딩 이외에 압축을 이용하여 디스크 사용량 및 scan 속도를 효율화 할 수 있다.
+압축방식은 <code>LZ4</code>, <code>Snappy</code>, <code>zlib</code>를 사용할 수 있으며, 일반적으로 <code>LZ4</code> 압축이 압축 성능이 좋기 때문에 많이 사용한다.
+<code>zlib</code> 압축은 가장 작은 데이터 사이즈로 압축할 수 있기때문에 디스크 사용량을 최대로 줄이고자 한다면 zlib를 사용하면 된다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-sql" data-lang="sql"><span class="c1">-- query with impala
+</span><span class="c1"></span><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">blog_posts</span>
+<span class="p">(</span>
+  <span class="n">user_id</span> <span class="n">STRING</span> <span class="k">ENCODING</span> <span class="n">DICT_ENCODING</span><span class="p">,</span>
+  <span class="n">post_id</span> <span class="nb">BIGINT</span> <span class="k">ENCODING</span> <span class="n">BIT_SHUFFLE</span><span class="p">,</span>
+  <span class="n">subject</span> <span class="n">STRING</span> <span class="k">ENCODING</span> <span class="n">PLAIN_ENCODING</span><span class="p">,</span>
+  <span class="n">body</span> <span class="n">STRING</span> <span class="n">COMPRESSION</span> <span class="n">LZ4</span><span class="p">,</span>
+  <span class="n">spanish_translation</span> <span class="n">STRING</span> <span class="n">COMPRESSION</span> <span class="n">SNAPPY</span><span class="p">,</span>
+  <span class="n">esperanto_translation</span> <span class="n">STRING</span> <span class="n">COMPRESSION</span> <span class="n">ZLIB</span><span class="p">,</span>
+  <span class="k">PRIMARY</span> <span class="k">KEY</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">post_id</span><span class="p">)</span>
+<span class="p">)</span> <span class="n">PARTITION</span> <span class="k">BY</span> <span class="n">HASH</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">post_id</span><span class="p">)</span> <span class="n">PARTITIONS</span> <span class="mi">2</span> <span class="n">STORED</span> <span class="k">AS</span> <span class="n">KUDU</span><span class="p">;</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Kafka Manager] 1.Installation</title>
+			<link>https://krespo.github.io/posts/kafka-manager/install-kafka-manager/</link>
+			<pubDate>Tue, 10 Dec 2019 14:31:31 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kafka-manager/install-kafka-manager/</guid>
+			<description>yahoo에서 만든 kafka-manager를 이용하면 카프카 운영을 위한 다양한 일들을 Web UI기반으로 처리할 수 있다. 설치 ## https://github.com/yahoo/kafka-manager/releases 에서 원하는 버전을 확인하</description>
+			<content type="html"><![CDATA[<p>yahoo에서 만든 <a href="https://github.com/yahoo/kafka-manager">kafka-manager</a>를 이용하면 카프카 운영을 위한 다양한 일들을 Web UI기반으로 처리할 수 있다.</p>
+<h2 id="설치">설치</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## https://github.com/yahoo/kafka-manager/releases 에서 원하는 버전을 확인하고 -b 파라미터로 버전을 넘겨준다.</span>
+<span class="c1">## 실제 실행파일은 해당 소스를 빌드한 후 생성이 됨으로 아래의 git clone은 아무 위치에서 실행해도 상관없다.</span>
+$ git clone -b 2.0.0.2 https://github.com/yahoo/kafka-manager.git
+$ <span class="nb">cd</span> kafka-manager
+<span class="c1">## 아래의 명령어로 빌드를 하면 target/universal 하위에 zip파일로 빌드파일이 생성된다.</span>
+$ ./sbt clean dist
+
+$ mv ./target/universal/kafka-manager-2.0.0.2.zip <span class="o">{</span>설치하고자 하는 디렉토리<span class="o">}</span>
+$ <span class="nb">cd</span> <span class="o">{</span>설치하고자 하는 디렉토리<span class="o">}</span>
+$ unzip kafka-manager-2.0.0.2.zip
+</code></pre></div><h2 id="설정">설정</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ vi conf/application.conf
+
+<span class="c1">### zookeeper 호스트를 지정해줌</span>
+<span class="c1">### 아래와 같이 설정하면 zk_host:2181/kafka-manager 라는 노드가 생성되고, 해당 노드에 kafka manager 사용에 따른 각종 state가 저장된다.</span>
+<span class="c1">### 이때 kafka-manager 노드는 자동생성이 된다.</span>
+<span class="c1">### 만약 zk_host:2181/kafka-manager-2.0.0.2와 같이 depth가 추가가 되면 kafka manager는 해당 노드를 생성해 주지 않기 때문에 kafka-manager-2.0.0.2 노드는 직접 수동으로 만들어 줘야 한다.</span>
+<span class="c1">### ex) zkCli.sh create /kafka-manager-2.0.0.2 &#39;&#39;</span>
+kafka-manager.zkhosts<span class="o">=</span>“zk_host:2181”
+</code></pre></div><h2 id="실행">실행</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## foreground</span>
+bin/kafka-manager
+
+<span class="c1">## background</span>
+background nohup ./bin/kafka-manager &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Kudu] 3. Source Build를 이용한 설치</title>
+			<link>https://krespo.github.io/posts/kudu/install_kudu/</link>
+			<pubDate>Wed, 04 Dec 2019 16:52:07 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/install_kudu/</guid>
+			<description>kudu를 설치하는 방법은 cloudera repository를 이용하여 설치하는 방법이 있고, source build를 통해 설치하는 방법이 있는데, cloudera 버전은 라이센스 관련 이슈</description>
+			<content type="html"><![CDATA[<p>kudu를 설치하는 방법은 cloudera repository를 이용하여 설치하는 방법이 있고, source build를 통해 설치하는 방법이 있는데, cloudera 버전은 라이센스 관련 이슈가 있어서, 사용에 문제가 없는 source build 버전을 통해 설치해보려고 한다.</p>
+<h2 id="설치환경">설치환경</h2>
+<ul>
+<li>CentOS 7.6</li>
+</ul>
+<h3 id="1-필수-라이브러리-설치">1. 필수 라이브러리 설치</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo yum install -y autoconf automake cyrus-sasl-devel cyrus-sasl-gssapi <span class="se">\
+</span><span class="se"></span>  cyrus-sasl-plain flex gcc gcc-c++ gdb git java-1.8.0-openjdk-devel <span class="se">\
+</span><span class="se"></span>  krb5-server krb5-workstation libtool make openssl-devel patch <span class="se">\
+</span><span class="se"></span>  pkgconfig redhat-lsb-core rsync unzip vim-common which
+</code></pre></div><h3 id="2-optional-kudu-nvm-사용을-위한-라이브러리-설치">2. (Optional) Kudu NVM 사용을 위한 라이브러리 설치</h3>
+<p>Kudu의 <a href="https://ko.wikipedia.org/wiki/%EB%B9%84%ED%9C%98%EB%B0%9C%EC%84%B1_%EB%A9%94%EB%AA%A8%EB%A6%AC">NVM(비휘발성 메모리)</a> 블록 캐시를 지원하려면 memkind 라이브러리를 설치해야한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo yum install -y memkind
+</code></pre></div><h3 id="3-kudu-source-clone">3. Kudu Source Clone</h3>
+<p><a href="https://github.com/apache/kudu/releases">Kudu Release</a>에서 버전을 확인한 후, git clone시 버전을 지정하여 clone 한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone -b 1.11.1 https://github.com/apache/kudu kudu-1.11.1
+$ <span class="nb">cd</span> kudu-1.11.1
+</code></pre></div><h3 id="4-build-if-necessarysh를-이용한-third-party-requirements-빌드">4. build-if-necessary.sh를 이용한 third-party requirements 빌드</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ build-support/enable_devtoolset.sh thirdparty/build-if-necessary.sh
+</code></pre></div><h3 id="5-kudu-build-and-install">5. Kudu Build And Install</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ mkdir -p build/release
+
+$ <span class="nb">cd</span> build/release
+
+$ ../../thirdparty/installed/common/bin/cmake <span class="se">\
+</span><span class="se"></span>  -DNO_TESTS<span class="o">=</span><span class="m">1</span> <span class="se">\
+</span><span class="se"></span>  -DCMAKE_BUILD_TYPE<span class="o">=</span>release ../..
+
+$ make -j4
+$ sudo make install
+</code></pre></div><h3 id="6-1-kudu-master-실행">6-1. Kudu Master 실행</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## 공통</span>
+$ sudo mkdir /etc/kudu
+$ sudo vi /etc/kudu/master.gflagfile
+
+<span class="c1">## 추가 설정은 https://kudu.apache.org/docs/configuration_reference.html#kudu-master_supported 에서 확인</span>
+--rpc_bind_addresses<span class="o">=</span>0.0.0.0:7051
+--fs_wal_dir<span class="o">=</span>/var/lib/kudu/master
+--fs_data_dirs<span class="o">=</span>/var/lib/kudu/master
+--log_dir<span class="o">=</span>/var/log/kudu
+--webserver_doc_root<span class="o">=</span><span class="o">{</span>KUDU git clone path<span class="o">}</span>/www
+
+<span class="c1">##wal dir, data dir, log dir에 권한이 필요하면 chown으로 권한 변경</span>
+
+<span class="c1">## kudu master 실행후 http://master-host:8051로 접속</span>
+$ nohup kudu-master --flagfile<span class="o">=</span>/etc/kudu/master.gflagfile &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div><h3 id="6-2-kudu-tablet-server-실행">6-2. Kudu Tablet Server 실행</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## 공통</span>
+$ sudo mkdir /etc/kudu
+$ sudo vi /etc/kudu/tserver.gflagfile
+
+<span class="c1">## 추가 설정은 https://kudu.apache.org/docs/configuration_reference.html#kudu-tserver_supported 에서 확인</span>
+--rpc_bind_addresses<span class="o">=</span>0.0.0.0:7051
+--fs_wal_dir<span class="o">=</span>/var/lib/kudu/tserver
+--fs_data_dirs<span class="o">=</span>/var/lib/kudu/tserver
+--log_dir<span class="o">=</span>/var/log/kudu
+--tserver_master_addrs<span class="o">=</span><span class="si">${</span><span class="nv">kudu</span><span class="p"> master</span><span class="si">}</span>:7051
+
+<span class="c1">##wal dir, data dir, log dir에 권한이 필요하면 chown으로 권한 변경</span>
+
+$ nohup kudu-tserver --flagfile<span class="o">=</span>/etc/kudu/tserver.gflagfile&gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Kudu] 2. Write And Compaction</title>
+			<link>https://krespo.github.io/posts/kudu/read-write-compaction/</link>
+			<pubDate>Mon, 02 Dec 2019 18:41:12 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/read-write-compaction/</guid>
+			<description>본 포스팅은 아래의 출처의 정보들을 조합하여 나름의 구성을 진행하였다. 잘못 이해하고 있거나, 문제가 있는 부분이 있을수 있음을 사전에 명시하고 시작하도록 하겠다</description>
+			<content type="html"><![CDATA[<p>본 포스팅은 아래의 출처의 정보들을 조합하여 나름의 구성을 진행하였다. 잘못 이해하고 있거나, 문제가 있는 부분이 있을수 있음을 사전에 명시하고 시작하도록 하겠다.</p>
+<h5 id="출처-및-참고자료">출처 및 참고자료</h5>
+<ul>
+<li><a href="https://blog.cloudera.com/apache-kudu-read-write-paths/">Apache Kudu Read &amp; Write Paths</a></li>
+<li><a href="https://www.slideshare.net/cloudera/apache-kudu-technical-deep-dive">Apache Kudu: Technical Deep Dive</a></li>
+<li><a href="https://www.amazon.com/Getting-Started-Kudu-Perform-Analytics-ebook/dp/B07FCSV45H/ref=sr_1_1?keywords=Getting+Started+with+Kudu&amp;qid=1575280015&amp;sr=8-1">Getting Started with Kudu</a></li>
+</ul>
+<h1 id="1-태블릿-탐색">1. 태블릿 탐색</h1>
+<p><img src="tablet_discovery.png" alt="Tablet discovery"></p>
+<h6 id="출처-httpsblogclouderacomapache-kudu-read-write-paths">출처: <a href="https://blog.cloudera.com/apache-kudu-read-write-paths/">https://blog.cloudera.com/apache-kudu-read-write-paths/</a></h6>
+<p>Kudu에서 데이터를 읽기 전 가장 먼저 해야할 일은 찾고자 하는 데이터가 어떤 태블릿 서버의 어떤 태블릿에 들어가있는지를 찾는 것이다.</p>
+<p>위의 이미지에서 잘 표현되어있듯, 가장 먼저 클라이언트는 <code>Master Leader</code>에게 bar 테이블의 key='foo'를 요청한다.
+이후 마스터 테이블은 Metadata를 찾아 해당 데이터가 있는 태블릿 정보를 돌려주게 된다. 이 정보를 바탕으로 태블릿에서 데이터를 가져온다.</p>
+<p>이때 매번 읽기 작업을 할때마다 Master에서 메타데이터를 읽어오는 것이 아니라 한번 요쳥한 데이터는 로컬 매타 캐시에 저장하고, 필요할때마다 이 캐시에서 데이터를 가져온다.</p>
+<p>이 캐시는 <code>READ</code>, <code>WRITE</code> 명령이 실패하면 갱신된다.</p>
+<h1 id="2-쓰기-오퍼레이션">2. 쓰기 오퍼레이션</h1>
+<h4 id="1-insert-operation">1) Insert Operation</h4>
+<p><img src="write_path_1.png" alt="write_step_1"></p>
+<p>Insert 요청이 들어오면 가장 먼서 <a href="https://ko.wikipedia.org/wiki/%EB%A1%9C%EA%B7%B8_%EC%84%A0%ED%96%89_%EA%B8%B0%EC%9E%85">WAL</a>에 저장된다. 여러 NoSQL 서버에서 사용하는 방법이며 디스크에 플러시 되기전 문제가 발생하였을때 복구하기 위한 방법으로 사용된다.</p>
+<p>WAL에 쓰고나면 <code>MemRowSet</code>이라고 불리우는 메모리 영역에 데이터를 쓴다. 이 부분에 쌓이게 되다 메모리가 가득차게 되면 디스크에 파일형태로 저장이 되는데 이것을 <code>DiskRowSet</code> 이라고 부른다. <code>DiskRowSet</code>은 Insert Operation을 통해 저장된 데이터인 <code>Base Data</code>와 Update Operation시에 사용할 메모리인 <code>DeltaMemStore</code>로 구성된다.</p>
+<p><img src="write_path_2.png" alt="write_step_2"></p>
+<p>Insert Operation이 지속적으로 발생하여 <code>MemRowSet</code>이 계속 flush 되면 <code>DiskRowSet</code>은 계속하여 늘어나게 된다. 이는 나중에 언급할 <code>DiskRowSet Compaction</code>에 의해 적은수의 파일 형태로 합쳐진다.</p>
+<h4 id="2-update-operation">2) Update Operation</h4>
+<p><img src="write_path_3.png" alt="write_step_3"></p>
+<p>Insert Operation이 <code>MemRowSet</code>이라 불리는 메모리 공간에 먼저 써지는것과 마찬가지로 Update Operation도 <code>DiskRowSet</code>이 가지고 있는 <code>DeltaMemStore</code>라는 메모리 공간에 업데이트 하고자하는 정보가 저장이 된다.
+이때 어떤 <code>DeltaMemStore</code>에 Update 정보를 남겨야 하는지 찾아야 하는데, 이때 <a href="https://ko.wikipedia.org/wiki/%EB%B8%94%EB%A3%B8_%ED%95%84%ED%84%B0">Bloom Filter</a>를 이용하여 빠르게 DiskRowSet-DeltaMemStore를 찾는다.</p>
+<p><img src="write_path_4.png" alt="write_step_4">
+지속적으로 Update Operation이 발생하면 <code>DeltaMemStore</code>에 쌓이고, 이는 <code>MemRowSet</code>과 동일하게 일정 크기만큼 커지면 <code>REDO Delta File</code>라고 불리우는 파일로 flush 된다. Update Operation이 많으면 많을 수록 flush도 자주되고, 이로 인해 <code>REDO Delta File</code>이 점점 더 많이 생성이 된다.</p>
+<h4 id="3-compaction이-필요한-이유">3) Compaction이 필요한 이유</h4>
+<p><img src="write_path_5_1.png" alt="write_step_5"></p>
+<p>Client가 특정 row에 대한 결과를 요청하면 Kudu는 <code>MemRowSet</code> + <code>DiskRowSet</code>의 결과를 찾아 Client에가 리턴해 주게 된다.</p>
+<p>이때</p>
+<ol>
+<li>DiskRowSet이 너무 많음</li>
+<li>REDO Delta File이 너무 많음</li>
+</ol>
+<p>과 같은 이유로 성능저하가 발생 될 수 있다. 그래서 이를 해결하기 위해 Compaction 작업을 진행하게 된다.</p>
+<h1 id="3-compaction">3. Compaction</h1>
+<p>위에 나열했던 것처럼 Compaction이 일어나는 부분은 <code>DiskRowSet</code>에 대한 Compaction과 <code>REDO Delta File</code>에 Compaction으로 나뉜다.</p>
+<h4 id="1-rowset-compaction">1) RowSet Compaction</h4>
+<p>여러개로 나뉘어져 있는 DiskRowSet들을 더 적은 수의 DiskRowSet으로 합치는 Compaction이다. 이렇게 DiskRowSet의 갯수가 줄어들면 쓰기 요청시 블룸필터에 의해 DiskRowSet을 찾는것이 빨라지기 때문에 쓰기 요청의 성능이 향상된다.</p>
+<h4 id="2-delta-compaction">2) Delta Compaction</h4>
+<p>REDO Delta file을 줄이는 방법에는 두가지 Compaction이 존재한다.</p>
+<ul>
+<li>Minor Delta Compaction: Base Data는 유지한 상태로 REDO delta file만 병합하여 REDO Delta file의 수를 줄여 읽기 성능 향상을 한다.</li>
+<li>Major Delta Compaction: REDO Delta File 뿐만 아니라 Base Data도 함께 병합 하는 Compaction
+<img src="major_compaction.png" alt="major compaction">
+<ul>
+<li>특정 컬럼에 대해 상당한 량의 업데이트가 일어났을때, Base Data와 관련된 REDO delta file을 병합한다. 이때 모든 REDO Delta file이 Base Data와 병합되는것이 아니라 대량의 업데이트와 연관된 파일만 Base Data와 병합된다.</li>
+<li>적은량의 업데이트가 발생하여 Base Data와 병합되어도 별 이득이 없는 경우 이는 그대로 <code>Unmerged REDO deltas</code>에 저장된다.</li>
+<li>Major compaction이 진행되는동안 변경분은 <code>UNDO deltas</code>라는 곳에 저장한다.</li>
+</ul>
+</li>
+</ul>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Kudu] 1. 소개 및 아키텍쳐</title>
+			<link>https://krespo.github.io/posts/kudu/introducing_apache_kudu/</link>
+			<pubDate>Mon, 02 Dec 2019 11:19:53 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/kudu/introducing_apache_kudu/</guid>
+			<description>Apache Kudu 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 Impala, Spark를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다.</description>
+			<content type="html"><![CDATA[<p><img src="kudu_logo.png" alt="apache Kudu"></p>
+<p><a href="https://kudu.apache.org/docs/index.html">Apache Kudu</a> 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 <code>Impala</code>, <code>Spark</code>를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다.</p>
+<h2 id="1-kudu의-장점">1. Kudu의 장점</h2>
+<ul>
+<li>OLAP성 작업의 빠른 처리</li>
+<li>MapReduce, Spark 및 기타 Hadoop 에코 시스템 컴포넌트들과의 통합</li>
+<li>Apache Impala와의 강력한 통합으로 Apache Parquet와 함께 HDFS를 사용하는 것보다 좋은 대안이 될수 있다.</li>
+<li>강력하지만 유연한 일관성 모델을 통해 엄격한 직렬화 가능 일관성 옵션을 포함하여 요청별로 일관성 요구 사항을 선택할 수 있다.</li>
+<li>순차적 및 랜덤 워크로드를 동시에 실행하기위한 강력한 성능.</li>
+<li>관리가 쉬움</li>
+<li>높은 가용성. 태블릿 서버와 마스터 서버는 Raft Consensus Algorithm을 사용하여 HA를 구성</li>
+<li>리더 태블릿의 오류가 발생하더라도 읽기 전용 팔로어 태블릿을 통해 읽기 서비스를 제공 가능함</li>
+<li>구조화 된 데이터 모델</li>
+</ul>
+<h2 id="2-kudu의-구성요소">2. Kudu의 구성요소</h2>
+<ul>
+<li>
+<p>Table : 테이블은 데이터가 저장되는 장소이다. 테이블은 스키마와 전체적으로 정렬되어 있는 Primary key를 가지고 있다. 테이블은 <code>tablet</code> 이라고 불리는 세그먼트로 나뉘어 질 수 있다.</p>
+</li>
+<li>
+<p>Tablet : 태블릿은 다른 데이터 저장 엔진이나 관계형 데이터베이스의 파티션과 유사한 테이블의 연속적인 부분이다. 주어진 태블릿은 여러 개의 태블릿 서버에 복제되며, 주어진 시점에 이러한 복제품 중 하나가 리더 태블릿으로 간주된다. HBase의 Region과 유사함</p>
+</li>
+<li>
+<p>Tablet Server : 태블릿 서버는 태블릿을 저장하고, 클라이언트에게 데이터를 제공한다. HBase의 Region Server와 유사함</p>
+</li>
+<li>
+<p>Master : 마스터는 모든 카탈로그 테이블이라고 불리우는 태블릿과 태블릿 서버 메타 데이터와 클러스터 메타 데이터를 저장한다. Tablet과 마찬가지로 Raft Consensus Algorithm을 이용해 Master중 리더가 선출되며 선출된 마스터를 통해 메타데이터를 읽거나 쓸수 있다.</p>
+</li>
+</ul>
+<h2 id="3-kudu-architecture">3. Kudu Architecture</h2>
+<p><img src="kudu_architecture.png" alt="Kudu Architecture"></p>
+<p>위의 구성요소에서 설명한데로 Master와 Tablet은 하나의 마스터와 여러개의 Follow를 가지며, Replication 구성된 태블릿은 여러대의 Table Server에 분산 저장 되는것을 볼수 있다.</p>
+<h6 id="출처-httpskuduapacheorgdocs">출처: <a href="https://kudu.apache.org/docs/">https://kudu.apache.org/docs/</a></h6>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] SparkSubmitOperator를 이용한 spark 실행</title>
+			<link>https://krespo.github.io/posts/airflow/spark-submit-and-airflow/</link>
+			<pubDate>Tue, 12 Nov 2019 13:23:33 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/spark-submit-and-airflow/</guid>
+			<description>Airflow에서는 다양한 Operator를 지원하는데 그 중 Spark을 실행하기 위한 SparkSubmitOperator 라는 것이 존재한다. 이번에는 SparkSubmitOper</description>
+			<content type="html"><![CDATA[<p>Airflow에서는 다양한 Operator를 지원하는데 그 중 Spark을 실행하기 위한 <code>SparkSubmitOperator</code> 라는 것이 존재한다.
+이번에는 <code>SparkSubmitOperator</code>를 이용하여 spark application을 동작시켜보도록 하겠다.</p>
+<h2 id="사전작업">사전작업</h2>
+<p><code>SparkSubmitOperator</code>는 내부적으로 spark binary인 <code>spark-submit</code> 을 호출하는 방식으로 spark을 실행하고 있다. 그러므로 <a href="https://spark.apache.org/downloads.html">Apache spark</a> 에서 각자의 환경에 알맞은 spark을 각 <code>airflow worker</code>에 다운로드 한후 다운로드 경로를 <code>$SPARK_HOME</code>을 환경변수로 등록하고 <code>$SPARK_HOME/bin</code> 을 path에 추가한다.</p>
+<p>또한 필자는 yarn에 spark job을 동작시킬것임으로 <code>HADOOP_HOME(Hadoop Binary)</code>, <code>HADOOP_CONF_DIR(Hadoop 설정파일)</code> 등을 설정한다.</p>
+<h2 id="sparksubmitoperator-사용">SparkSubmitOperator 사용</h2>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">airflow</span> <span class="kn">import</span> <span class="n">DAG</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">airflow.contrib.operators.spark_submit_operator</span> <span class="kn">import</span> <span class="n">SparkSubmitOperator</span>
+
+
+<span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">start_date</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retries</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">catchup</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retry_delay</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">dag</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">sample_spark</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">default_args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span> <span class="n">schedule_interval</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">@once</span><span class="s2">&#34;</span><span class="p">)</span>
+
+<span class="n">spark_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">conf</span><span class="s1">&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="sa"></span><span class="s2">&#34;</span><span class="s2">spark.yarn.maxAppAttempts</span><span class="s2">&#34;</span><span class="p">:</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">1</span><span class="s2">&#34;</span><span class="p">,</span>
+        <span class="sa"></span><span class="s2">&#34;</span><span class="s2">spark.yarn.executor.memoryOverhead</span><span class="s2">&#34;</span><span class="p">:</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">5120</span><span class="s2">&#34;</span>
+    <span class="p">}</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">conn_id</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_option</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">application</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">/{실행하고자 하는 jar path}</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">driver_memory</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">2g</span><span class="s2">&#34;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">executor_cores</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">num_executors</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">executor_memory</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">5g</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">keytab</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">/ketab/path</span><span class="s1">&#39;</span><span class="p">,</span>            <span class="c1">## kerberos 인증이 필요하다면</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">principal</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">{keytab.principal}</span><span class="s1">&#39;</span><span class="p">,</span>  <span class="c1">## kerberos 인증이 필요하다면</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">java_class</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">{jar파일 안에 포함된 main class}</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">driver_memory</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">3g</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">operator</span> <span class="o">=</span> <span class="n">SparkSubmitOperator</span><span class="p">(</span><span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_submit_task</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">,</span> <span class="o">*</span><span class="o">*</span><span class="n">spark_config</span><span class="p">)</span>
+</code></pre></div><p>위의 예시는 필요한 필부 설정만 작업한 것이고, 전체 파라미터를 보려면 <code>SparkSubmitOperator</code> 소스코드를 보는게 좋다. 아래는 실제 코드의 일부분이다.
+(좀더 상세한 옵션 예제는 <a href="https://github.com/apache/airflow/blob/master/tests/contrib/operators/test_spark_submit_operator.py">여기</a> 에서 확인하면 된다.)</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1">## airflow/contirb/operators/spark_submit_operator.py</span>
+<span class="nd">@apply_defaults</span>
+<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+     <span class="n">application</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">&#39;</span><span class="p">,</span>
+     <span class="n">conf</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">conn_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_default</span><span class="s1">&#39;</span><span class="p">,</span>
+     <span class="n">files</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">py_files</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">archives</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">driver_class_path</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">jars</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">java_class</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">packages</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">exclude_packages</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">repositories</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">total_executor_cores</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">executor_cores</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">executor_memory</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">driver_memory</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">keytab</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">principal</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">proxy_user</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">name</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">airflow-spark</span><span class="s1">&#39;</span><span class="p">,</span>
+     <span class="n">num_executors</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">application_args</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">env_vars</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+     <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+     <span class="n">spark_binary</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">spark-submit</span><span class="s2">&#34;</span><span class="p">,</span>
+     <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+     <span class="o">*</span><span class="o">*</span><span class="n">kwargs</span><span class="p">)</span><span class="p">:</span>
+</code></pre></div><p>그런데 DAG를 생성하다보니 특이한점이 보였다. 바로 spark-submit 시 필요한 Argument인 <code>--master</code> <code>--deploy-mode</code> <code>--queue</code> 등을 옵션으로 넘겨줄 수 없다는것인데, 이를 해결하기 위해 관련 코드를 열어보았다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1">## airflow/contrib/hooks/spark_submit_hook.py</span>
+<span class="k">def</span> <span class="nf">_resolve_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="p">:</span>
+  <span class="c1"># Build from connection master or default to yarn if not available</span>
+  <span class="n">conn_data</span> <span class="o">=</span> <span class="p">{</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">master</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">yarn</span><span class="s1">&#39;</span><span class="p">,</span>
+               <span class="sa"></span><span class="s1">&#39;</span><span class="s1">queue</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+               <span class="sa"></span><span class="s1">&#39;</span><span class="s1">deploy_mode</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+               <span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_home</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+               <span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_binary</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spark_binary</span> <span class="ow">or</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">spark-submit</span><span class="s2">&#34;</span><span class="p">,</span>
+               <span class="sa"></span><span class="s1">&#39;</span><span class="s1">namespace</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">}</span>
+
+  <span class="k">try</span><span class="p">:</span>
+      <span class="c1"># Master can be local, yarn, spark://HOST:PORT, mesos://HOST:PORT and</span>
+      <span class="c1"># k8s://https://&lt;HOST&gt;:&lt;PORT&gt;</span>
+      <span class="n">conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_connection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_conn_id</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">conn</span><span class="o">.</span><span class="n">port</span><span class="p">:</span>
+          <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">master</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">{}:{}</span><span class="s2">&#34;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">host</span><span class="p">,</span> <span class="n">conn</span><span class="o">.</span><span class="n">port</span><span class="p">)</span>
+      <span class="k">else</span><span class="p">:</span>
+          <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">master</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">host</span>
+
+      <span class="c1"># Determine optional yarn queue from the extra field</span>
+      <span class="n">extra</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">extra_dejson</span>
+      <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">queue</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">queue</span><span class="s1">&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+      <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">deploy_mode</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">deploy-mode</span><span class="s1">&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+      <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_home</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark-home</span><span class="s1">&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+      <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark_binary</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spark_binary</span> <span class="ow">or</span>  \
+          <span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">spark-binary</span><span class="s1">&#39;</span><span class="p">,</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">spark-submit</span><span class="s2">&#34;</span><span class="p">)</span>
+      <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">namespace</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">namespace</span><span class="s1">&#39;</span><span class="p">)</span>
+  <span class="k">except</span> <span class="n">AirflowException</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+          <span class="sa"></span><span class="s2">&#34;</span><span class="s2">Could not load connection string </span><span class="si">%s</span><span class="s2">, defaulting to </span><span class="si">%s</span><span class="s2">&#34;</span><span class="p">,</span>
+          <span class="bp">self</span><span class="o">.</span><span class="n">_conn_id</span><span class="p">,</span> <span class="n">conn_data</span><span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">master</span><span class="s1">&#39;</span><span class="p">]</span>
+      <span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">conn_data</span>
+</code></pre></div><p>코드를 보면 <code>master</code> <code>queue</code> <code>deploy-mode</code> <code>spark-home</code> <code>spark-binary</code> <code>namespace</code> 를 <code>extra.get</code>을 통해서 어디선가 가져오는게 보인다. 여기에 extra는 바로 <code>Airflow Web -&gt; admin -&gt; Connnections</code> 에서 가져온다.</p>
+<p>아래의 이미지처럼 Extra 부분에 json 으로 필요한 부분을 적어주고, Connection의 <code>Conn id</code>를 DAG 설정시 사용했던 <code>spark_config</code>에 <code>conn_id</code>로 넣어주면 된다.
+<img src="spark-airflow-connector.png" alt="spark-connector"></p>
+<p>위와같이 SparkSubmitOperator와 Connection 을 이용하여 spark-submit을 airflow에서 사용할수 있게 되었다.</p>
+<p>하지만 필자는 동작시키는 Spark Application마다 <code>queue</code>를 변경시켜야 할 이슈가 있었다. 이러한 상황에서 SparkSubmitOperator를 그대로 쓰려면 사용하려는 queue 마다 connection을 생성해야 하는 번거로운 작업을 해야함으로 필자는 결국 <code>BashOperator</code>로 spark-submit 을 직접 호출하는 방식으로 사용하고 있다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] macOS catalina에서 hostname does not match this instance&#39;s hostname 해결하기</title>
+			<link>https://krespo.github.io/posts/airflow/hostname-error/</link>
+			<pubDate>Mon, 11 Nov 2019 16:34:10 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/hostname-error/</guid>
+			<description>얼마전 macOS Catalina버전으로 업그레이드 되면서 로컬에서 airflow가 정상적으로 동작하지 않는 문제가 생겼다. The recorded hostname [1m1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa[0m does not match this instance&amp;rsquo;s hostname [1m1.0.0.127.in-addr.arpa 위의 에러 메</description>
+			<content type="html"><![CDATA[<p>얼마전 <code>macOS Catalina</code>버전으로 업그레이드 되면서 로컬에서 airflow가 정상적으로 동작하지 않는 문제가 생겼다.</p>
+<blockquote>
+<p>The recorded hostname [1m1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa[0m does not match this instance&rsquo;s hostname [1m1.0.0.127.in-addr.arpa</p>
+</blockquote>
+<p>위의 에러 메세지를 기준으로 airflow 코드를 들여다 보기로 했다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1">##  airflow/jobs/local_task_job.py</span>
+<span class="k">def</span> <span class="nf">heartbeat_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span><span class="p">:</span>
+    <span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">Self destruct task if state has been moved away from running externally</span><span class="s2">&#34;&#34;&#34;</span>
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminating</span><span class="p">:</span>
+        <span class="c1"># ensure termination if processes are created later</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_runner</span><span class="o">.</span><span class="n">terminate</span><span class="p">(</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">task_instance</span><span class="o">.</span><span class="n">refresh_from_db</span><span class="p">(</span><span class="p">)</span>
+    <span class="n">ti</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_instance</span>
+
+    <span class="n">fqdn</span> <span class="o">=</span> <span class="n">get_hostname</span><span class="p">(</span><span class="p">)</span>
+    <span class="n">same_hostname</span> <span class="o">=</span> <span class="n">fqdn</span> <span class="o">==</span> <span class="n">ti</span><span class="o">.</span><span class="n">get_hostname</span>                               <span class="c1">## &lt;==== 여기에서 문제 발생</span>
+    <span class="n">same_process</span> <span class="o">=</span> <span class="n">ti</span><span class="o">.</span><span class="n">pid</span> <span class="o">==</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ti</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="n">State</span><span class="o">.</span><span class="n">RUNNING</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">same_hostname</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">The recorded hostname </span><span class="si">%s</span><span class="s2"> </span><span class="s2">&#34;</span>
+                             <span class="sa"></span><span class="s2">&#34;</span><span class="s2">does not match this instance</span><span class="s2">&#39;</span><span class="s2">s hostname </span><span class="s2">&#34;</span>
+                             <span class="sa"></span><span class="s2">&#34;</span><span class="si">%s</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">ti</span><span class="o">.</span><span class="n">hostname</span><span class="p">,</span> <span class="n">fqdn</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">Hostname of job runner does not match</span><span class="s2">&#34;</span><span class="p">)</span>
+</code></pre></div><p>위의 코드에서 보면 <code>ti.get_hostname</code> 의 값과 <code>get_hostname()</code> 으로 얻어진 fqdn의 값이 달라 에러가 발생하는것으로 보였다.</p>
+<p>get_hostname()을 따라가 보면</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1">## airflow/utils/net.py</span>
+
+<span class="k">def</span> <span class="nf">get_hostname</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
+    <span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    Fetch the hostname using the callable from the config or using</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    `socket.getfqdn` as a fallback.</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    </span><span class="s2">&#34;&#34;&#34;</span>
+    <span class="c1"># First we attempt to fetch the callable path from the config.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">callable_path</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">core</span><span class="s1">&#39;</span><span class="p">,</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">hostname_callable</span><span class="s1">&#39;</span><span class="p">)</span>			<span class="c1">## &lt;== airflow.cfg에서 hostname_callable 설정값을 읽는다.</span>
+    <span class="k">except</span> <span class="n">AirflowConfigException</span><span class="p">:</span>
+        <span class="n">callable_path</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="c1"># Then we handle the case when the config is missing or empty. This is the</span>
+    <span class="c1"># default behavior.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">callable_path</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">socket</span><span class="o">.</span><span class="n">getfqdn</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="c1"># Since we have a callable path, we try to import and run it next.</span>
+    <span class="n">module_path</span><span class="p">,</span> <span class="n">attr_name</span> <span class="o">=</span> <span class="n">callable_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">:</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span>
+    <span class="nb">callable</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">callable</span><span class="p">(</span><span class="p">)</span>
+</code></pre></div><p>코드를 보면 airflow.cfg 파일에 <code>hostname_callable</code>이란 설정값을 읽어 모듈을 로드하여 호스트명을 얻는것으로 보인다.</p>
+<p>airflow.cfg 파일을 엵어보면 기본으로 <code>socket.getfqdn</code>을 읽어 호스트명을 가져오는것을 볼수 있다.</p>
+<pre><code># Hostname by providing a path to a callable, which will resolve the hostname
+# The format is &quot;package:function&quot;. For example,
+# default value &quot;socket:getfqdn&quot; means that result from getfqdn() of &quot;socket&quot; package will be used as hostname
+# No argument should be required in the function specified.
+# If using IP address as hostname is preferred, use value &quot;airflow.utils.net:get_host_ip_address&quot;
+hostname_callable = socket:getfqdn
+</code></pre><p>즉 <code>socket.getfqdn</code>을 호출시 macOS 카탈리나 이전버전에서는 문제 없이 가져오던 부분이 os가 버전 업데이트 되면서 문제가 발생한것으로 보인다.
+그래서 설정파일에서 예시로 보여준것처럼 <code>airflow.utils.net:get_host_ip_address</code>를 사용해 보려고 했지만 에러가 발생했다.</p>
+<p>결론적으로</p>
+<blockquote>
+<p>ip나 hostname을 가져오는 커스텀 코드를 작성하여 hostname_callable에 등록</p>
+</blockquote>
+<p>하는 식으로 처리하기로 했다.</p>
+<h3 id="1-airflow_homecustom-디렉토리-생성-후-하위에-net_utilespy를-생성">1. ${AIRFLOW_HOME}/custom 디렉토리 생성 후 하위에 <code>net_utiles.py</code>를 생성</h3>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="sa"></span><span class="s1">&#39;&#39;&#39;</span><span class="s1">
+</span><span class="s1"></span><span class="s1">아래의 경로에 저장</span><span class="s1">
+</span><span class="s1"></span><span class="s1">${AIRFLOW_HOME}/custom/__init__.py</span><span class="s1">
+</span><span class="s1"></span><span class="s1">					  /net_utils.py</span><span class="s1">
+</span><span class="s1"></span><span class="s1">
+</span><span class="s1"></span><span class="s1">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+
+
+<span class="k">def</span> <span class="nf">get_hostname</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+
+</code></pre></div><h3 id="2-setuptools를-이용하여-모듈-등록">2. <code>setuptools</code>를 이용하여 모듈 등록</h3>
+<p>${AIRFLOW_HOME}/setup.py 생성</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">setuptools</span> <span class="kn">import</span> <span class="n">setup</span><span class="p">,</span> <span class="n">find_packages</span>
+
+<span class="n">setup</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">airflow</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">version</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">1.0</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">packages</span><span class="o">=</span><span class="n">find_packages</span><span class="p">(</span><span class="p">)</span><span class="p">,</span>
+    <span class="n">include_package_data</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+    <span class="n">zip_safe</span><span class="o">=</span><span class="bp">False</span>
+<span class="p">)</span>
+</code></pre></div><p>find_packages를 통해 1에서 생성한 custom 폴더를 접근할수 있도록 변경해 준다.</p>
+<p>그후</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="err">$</span> <span class="n">python</span> <span class="n">setup</span><span class="o">.</span><span class="n">py</span> <span class="n">install</span>
+</code></pre></div><p>을 실행하여 커스텀 코드를 PYTHONPATH에 추가해준다.</p>
+<h3 id="3-airflowcfg에-hostname_callable-수정">3. airflow.cfg에 <code>hostname_callable</code> 수정</h3>
+<pre><code>#hostname_callable = socket:getfqdn
+hostname_callable = custom.net_utils:get_hostname
+</code></pre><p>위와 같이 설정 후 webserver, scheduler를 재실행 하면 ip4 기반으로 작동시킬 수 있다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>Mysql 바이너리로그 끄고 켜기</title>
+			<link>https://krespo.github.io/posts/mysql/on-off-bin-log/</link>
+			<pubDate>Thu, 07 Nov 2019 13:50:51 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/mysql/on-off-bin-log/</guid>
+			<description>바이너리 로그는 master-slave 구성을 하거나, CDC를 할 때 사용하는데, 상황에 따라서 enable/disable 해야할 이슈가 있어 기록차원에서 남겨본다. 1.bin-log on $ vi /etc/my.cfg [mysqld] log-data=/data1/mysql/,ysql-bin $ sudo service mysql restart 2.bin-log off $ vi /etc/my.cfg</description>
+			<content type="html"><![CDATA[<p>바이너리 로그는 master-slave 구성을 하거나, <a href="https://en.wikipedia.org/wiki/Change_data_capture">CDC</a>를 할 때 사용하는데, 상황에 따라서 enable/disable 해야할 이슈가 있어 기록차원에서 남겨본다.</p>
+<h2 id="1bin-log-on">1.bin-log on</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ vi /etc/my.cfg
+
+<span class="o">[</span>mysqld<span class="o">]</span>
+log-data<span class="o">=</span>/data1/mysql/,ysql-bin
+
+$ sudo service mysql restart
+</code></pre></div><h2 id="2bin-log-off">2.bin-log off</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ vi /etc/my.cfg
+
+<span class="c1">##주석처리</span>
+<span class="o">[</span>mysqld<span class="o">]</span>
+<span class="c1">#log-data=/data1/mysql/,ysql-bin</span>
+$ sudo service mysql restart
+</code></pre></div>]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] Scheduler SPOF(Single Point Of Failure) 제거하기</title>
+			<link>https://krespo.github.io/posts/airflow/airflow-scheduler-failover/</link>
+			<pubDate>Mon, 04 Nov 2019 18:48:06 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/airflow-scheduler-failover/</guid>
+			<description>위의 그림은 celery executor를 이용한 여러대의 워커로 구성한 아키텍쳐이다. 이중 scheduler는 DB에서 스케줄 정보를 가져와 redis의 pub/</description>
+			<content type="html"><![CDATA[<p><img src="airflow-scheduler-failover.png" alt="airflow"></p>
+<p>위의 그림은 celery executor를 이용한 여러대의 워커로 구성한 아키텍쳐이다.
+이중 scheduler는 DB에서 스케줄 정보를 가져와 redis의 pub/sub을 이용하여 worker들에게 잡을 할당하는데, 이때 scheduler는 단일고장점(<a href="https://ko.wikipedia.org/wiki/%EB%8B%A8%EC%9D%BC_%EC%9E%A5%EC%95%A0%EC%A0%90">Single Point Of Failure-SPOF</a>) 이 된다.
+따라서 Downtime이 없는 airflow를 구성하려면 SPOF를 제거하는것이 중요한데 airflow 자체적으로 해결할수 있는 방법은 아직 존재하지 않는다.</p>
+<p>&lsquo;master 서버에 scheduler를 두개 실행해놓으면 되지 않을까&rsquo; 라는 생각을 해보지만, 이렇게 scheduler를 여러개 실행하면 동일한 DAG가 실행시킨 scheduler 갯수만큼 실행된다.</p>
+<p>이를 해결하기 위한 방법중 <a href="https://github.com/teamclairvoyant/airflow-scheduler-failover-controller">airflow-scheduler-failover-controller</a> 를 이용하여 SPOF를 제거해 보고자 한다.</p>
+<h1 id="1-설치">1. 설치</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## 아래의 커맨드는 scheduler를 동작할 서버에서만 수행한다.</span>
+$ <span class="nb">cd</span> <span class="nv">$AIRFLOW_HOME</span>
+$ pip install git+https://github.com/teamclairvoyant/airflow-scheduler-failover-controller.git@v1.0.5
+<span class="c1">## airflow.cfg 설정파일에 [scheduler_failover] 항목이 추가된다.</span>
+$ scheduler_failover_controller init
+</code></pre></div><h1 id="2-설정">2. 설정</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ vi airflow.cfg
+
+<span class="c1">## [scheduler_failover] 부분을 기본설정으로 둔 뒤 아래의 것만 수정한다.</span>
+
+<span class="c1">## scheduler를 동작시키는 서버의 아이피를 ,로 구분지어 적어준다.</span>
+<span class="nv">scheduler_nodes_in_cluster</span> <span class="o">=</span> aaa.aaa.aaa.aaa,bbb.bbb.bbb.bbb
+</code></pre></div><p>그후 scheduler 서버들끼리 ssh 터널링이 가능하도록 ssh 키 작업을 해준다.
+예를 들어 scheduler를 동작시킬 webserver1,2 가 있다면 ssh를 통해 webserver 1-&gt;2로, webserver 2-&gt;1 로 접근 가능하도록 설정해야 한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ssh-keygen -t rsa
+Generating public/private rsa key pair.
+Enter file in which to save the key <span class="o">(</span>/home/dev/.ssh/id_rsa<span class="o">)</span>: &lt;엔터
+Enter passphrase <span class="o">(</span>empty <span class="k">for</span> no passphrase<span class="o">)</span>: &lt;엔터
+Enter same passphrase again: &lt;엔터
+Your identification has been saved in /home/dev/.ssh/id_rsa.
+Your public key has been saved in /home/dev/.ssh/id_rsa.pub.
+The key fingerprint is:
+xxx 
+The key<span class="err">&#39;</span>s randomart image is:
++---<span class="o">[</span>RSA 2048<span class="o">]</span>----+
+<span class="p">|</span>                 <span class="p">|</span>
+<span class="p">|</span>          E      <span class="p">|</span>
+<span class="p">|</span>           o     <span class="p">|</span>
+<span class="p">|</span>    .     <span class="o">=</span>      <span class="p">|</span>
+<span class="p">|</span>   . .  <span class="nv">S</span><span class="o">=</span> o     <span class="p">|</span>
+<span class="p">|</span>o. .+ ..o.+ + . o<span class="p">|</span>
+<span class="p">|</span>oooo.+...+.+ <span class="nv">X</span> <span class="o">=</span> <span class="p">|</span>
+<span class="p">|</span>                 <span class="p">|</span>
+<span class="p">|</span>                 <span class="p">|</span>
++----<span class="o">[</span>SHA256<span class="o">]</span>-----+
+
+</code></pre></div><p>위와 같이 생성된 public 키를 접근하고자 하는 서버의 <code>~/.ssh/authorized_keys</code> 파일에 추가한다.
+즉 webserver1번의 id_rsa.pub 키를 webserver2번의 authorized_keys에 추가하고, webserver2번의 id_rsa.pub 키를 1번서버의 authorized_keys에 추가한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">### 연결이 정상적인지 테스트 한다.</span>
+$ scheduler_failover_controller test_connection
+Testing Connection <span class="k">for</span> host <span class="s1">&#39;xxx&#39;</span>
+<span class="o">(</span>True, <span class="o">[</span><span class="s1">&#39;Connection Succeeded&#39;</span>, <span class="s1">&#39;&#39;</span><span class="o">]</span><span class="o">)</span>
+
+</code></pre></div><h1 id="3-실행">3. 실행</h1>
+<p>실행순서는 webserver -&gt; scheduler failover controller -&gt; scheduler 순으로 동작 시킨다. 이때 실행은 <em>서버에 동시에 실행하지 않고 순차적</em>으로 진행한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## webserver 실행</span>
+$ nohup airflow webserver &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+
+<span class="c1">## fail over controller 실행</span>
+$ nohup scheduler_failover_controller start &gt; /dev/null <span class="p">&amp;</span>
+
+<span class="c1">## scheduler 실행</span>
+$ nohup airflow scheduler &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div><p>세팅이 정상적이라면 scheduler 여러개가 동작이 감지되면 하나만 남기고 모두 kill 시키기도 하고, scheduler가 중지되면 다른 스케줄러를 동작시키기도 한다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] 커버로스 설정 및 hive 연결</title>
+			<link>https://krespo.github.io/posts/airflow/kerberos-configuration/</link>
+			<pubDate>Mon, 04 Nov 2019 16:05:44 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/kerberos-configuration/</guid>
+			<description>airflow를 이용하여 kerberos 인증이 적용된 데이터소스(ex - hadoop)에 접근하려면 커버로스 설정을 airflow에 적용해야 한다. 아래의 예제는 kerberos</description>
+			<content type="html"><![CDATA[<p>airflow를 이용하여 kerberos 인증이 적용된 데이터소스(ex - hadoop)에 접근하려면 커버로스 설정을 airflow에 적용해야 한다.
+아래의 예제는 kerberos 인증이 적용된 hive에 접근하는 방법을 작성해 보고자 한다.</p>
+<h2 id="1-커버로스-설정">1. 커버로스 설정</h2>
+<p>커버로스 연동은 id/pw를 통해서 연동할 수도 있지만, 아래의 설정은 keytab 파일을 가지고 설정하는 방법을 다룬다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">cd</span> <span class="nv">$AIRFLOW_HOME</span>
+$ pip3 install apache-airflow<span class="o">[</span>hive<span class="o">]</span><span class="o">=</span><span class="o">=</span>1.10.5
+$ pip3 install thrift_sasl cyrus-sasl-devel cyrus-sasl-gssapi cyrus-sasl-md5 cyrus-sasl-plain
+
+$ vi airflow.cfg
+<span class="nv">security</span> <span class="o">=</span> kerberos
+
+<span class="c1">## kerberos 항목에 principal, keytab을 설정한다.</span>
+<span class="o">[</span>kerberos<span class="o">]</span>
+<span class="nv">ccache</span> <span class="o">=</span> /tmp/airflow_krb5_ccache
+<span class="c1"># gets augmented with fqdn</span>
+<span class="nv">principal</span> <span class="o">=</span> xxxx@DOMAIN
+<span class="nv">reinit_frequency</span> <span class="o">=</span> <span class="m">3600</span>
+<span class="nv">kinit_path</span> <span class="o">=</span> kinit
+<span class="nv">keytab</span> <span class="o">=</span> /<span class="o">{</span>keytabfile위치<span class="o">}</span>/xxxx.keytab
+
+
+<span class="c1">## 커버로스 인증을 하기위한 설정을 수정한다. 내용은 커버로스인증마다/회사마다 다르기 때문에 각자 알맞게 수정한다.</span>
+$ sudo vi /etc/krb5.conf
+
+
+<span class="c1">## 커버로스 인증을 계속 유지해야 하기 때문에 백그라운드에서 티켓을 갱신할 airflow 모듈을 실행한다.</span>
+$ nohup airflow kerberos &gt; /dev/null 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">&amp;</span>
+</code></pre></div><h2 id="2-airflow-connection-설정">2. airflow connection 설정</h2>
+<p>airflow에서는 데이터소스에 접근할때 직접 DAG나 파이선코드에 커넥션 정보를 넣어 동작시킬수 있지만, connection 정보를 웹에서 관리하고, 등록된 ID를 통해 DAG나 파이썬 파일에서 간단하게 접근이 가능하다.
+설정은 airflow web -&gt; admin -&gt; connection -&gt; Create 에서 가능하며 아래와 같이 등록한다.</p>
+<p><img src="airflow-connection.png" alt="airflow connection"></p>
+<p>이때 <code>Conn Id</code>가 중요하며, DAG에서 해당 아이디로 커넥션 정보를 바로 가져올 수 있다.</p>
+<h2 id="3-airflow-dag-설정">3. airflow DAG 설정</h2>
+<p>아래의 코드는 <a href="https://airflow.apache.org/concepts.html#hooks">airflow hook</a> 을 이용하여 hive에 쿼리를 날리는 예제이다.
+Hook은 외부 플랫폼이나 DB에 접근하기 쉽도록 커넥션/릴리즈 같은 역할들을 대신해주는 것으로 해당 hook에 Connection ID만 전달하면 아무작업도 하지 않고 커넥션을 맺고 사용할수 있도록 도와준다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">airflow</span> <span class="kn">import</span> <span class="n">DAG</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">airflow.hooks.hive_hooks</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">airflow.operators.python_operator</span> <span class="kn">import</span> <span class="n">PythonOperator</span>
+
+
+<span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">start_date</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retries</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">catchup</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retry_delay</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="p">,</span>
+    <span class="c1"># &#39;queue&#39;: &#39;bash_queue&#39;,</span>
+    <span class="c1"># &#39;pool&#39;: &#39;backfill&#39;,</span>
+    <span class="c1"># &#39;priority_weight&#39;: 10,</span>
+    <span class="c1"># &#39;end_date&#39;: datetime(2016, 1, 1),</span>
+<span class="p">}</span>
+
+<span class="c1">### hiveserver2_conn_id에 위에서 설정한 conn_id를 입력해 준다.</span>
+<span class="k">def</span> <span class="nf">simple_query</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
+    <span class="n">hm</span> <span class="o">=</span> <span class="n">HiveServer2Hook</span><span class="p">(</span><span class="n">hiveserver2_conn_id</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">###</span><span class="s2">&#34;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">=====================&gt; connection</span><span class="s2">&#34;</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">hm</span><span class="o">.</span><span class="n">get_records</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">select 1 </span><span class="s2">&#34;</span><span class="p">,</span> <span class="sa"></span><span class="s2">&#34;</span><span class="s2">default</span><span class="s2">&#34;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">정상 종료!!</span><span class="s2">&#34;</span><span class="p">)</span>
+
+
+<span class="n">dag</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">tutorial_hive</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">default_args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span> <span class="n">schedule_interval</span><span class="o">=</span><span class="sa"></span><span class="s2">&#34;</span><span class="s2">@once</span><span class="s2">&#34;</span><span class="p">)</span>
+
+<span class="c1"># t1, t2 and t3 are examples of tasks created by instantiating operators</span>
+<span class="n">t1</span> <span class="o">=</span> <span class="n">PythonOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">execute_hive</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">provide_context</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+    <span class="n">python_callable</span><span class="o">=</span><span class="n">simple_query</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div><p>위의 파이썬 파일을 dags에 복사하여 넣고 동작시켜보면 정상적으로 결과를 가져오는 것을 볼수 있다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>[Airflow] 설치</title>
+			<link>https://krespo.github.io/posts/airflow/1_airflow_install/</link>
+			<pubDate>Mon, 04 Nov 2019 11:34:19 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/airflow/1_airflow_install/</guid>
+			<description>설치 환경 CentOS 7.7 airflow 1.10.5 airflow는 단일 서버에서 설치하는 방법외에 python celery모듈을 이용하여 webserver와 worker서버를 분리 할수 있다.</description>
+			<content type="html"><![CDATA[<h1 id="설치-환경">설치 환경</h1>
+<ol>
+<li>CentOS 7.7</li>
+<li>airflow 1.10.5</li>
+</ol>
+<p>airflow는 단일 서버에서 설치하는 방법외에 <a href="http://www.celeryproject.org/">python celery모듈</a>을 이용하여 webserver와 worker서버를 분리 할수 있다.
+아래는 webserver 1대와 worker서버 2대에 설치하는방법이며, 이때 Celery를 이용하여 multiple worker를 설정하려면 추가적으로 Redis 또는 RabbitMQ, Mysql 서버를 추가적으로 필요로 한다.</p>
+<p>보통의 구성으로는</p>
+<ul>
+<li>web server: airflow webserver, airflow scheduler, mysql, redis 설치</li>
+<li>worker server : airflow worker
+와 같은 식으로 설치한다.</li>
+</ul>
+<h1 id="airflow-모듈">airflow 모듈</h1>
+<p>airflow는 역할에 따라 몇가지 모듈이 존재한다.</p>
+<ul>
+<li>airflow webserver: 웹UI를 통해 workflow를 컨트롤 하기 위함</li>
+<li>airflow scheduler: DAG 파일을 통록된 workflow를 지정된 시간에 동작시키는 역할</li>
+<li>airflow worker: scheduler에 의해 할당된 workflow를 실제로 동작시킴</li>
+<li>airflow kerberos(옵션) : 만약 kerberos 인증된 데이터소스(ex- 하둡)에 접근할때 커버로스 인증티켓을 주기적으로 갱신하기 위함</li>
+</ul>
+<h1 id="사전설치">사전설치</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1">## 파이썬 3.6 설치 및 virtualenv 설치</span>
+$ sudo yum install -y python3 python3-devel
+$ sudo pip3 intall virtualenv
+
+<span class="c1">##추가 필요 모듈 설치</span>
+$ sudo yum install -y gcc gcc-c++ cyrus-sasl-devel mysql-devel
+
+<span class="c1">## https://github.com/inishchith/autoenv</span>
+<span class="c1">## virtualenv를 편하게 사용하기 위해 autoenv 설치</span>
+<span class="c1">## virtualenv를 활성화 하려면 매번 해당 디렉토리에 들어가서 source ./bin/activate 를 실행해줘야 한다.</span>
+<span class="c1">## autoenv는 디렉토리 이동시 .env 파일의 유무를 확인한후 .env를 실행한다.</span>
+<span class="c1">## 따라서 .env 파일을 만들고 virtualenv activate를 써주면 매번 activate를 해줄필요 없이 자동으로 처리된다.</span>
+$ sudo pip3 install autoenv
+$ <span class="nb">echo</span> <span class="s2">&#34;source `which activate.sh`&#34;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">source</span> ~/.bash_profile
+</code></pre></div><h1 id="1-airflow-설치-모든-서버">1. airflow 설치 (모든 서버)</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ mkdir <span class="si">${</span><span class="nv">airflow</span><span class="p"> 설치 디렉토리</span><span class="si">}</span>
+
+<span class="c1">## airflow_home 환경변수 지정, 지정된 위치에 airflow가 설치되게 된다.</span>
+$ <span class="nb">echo</span> <span class="s1">&#39;export AIRFLOW_HOME=${airflow 설치 디렉토리}&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">source</span> ~/.bash_profile
+
+$ <span class="nb">cd</span> <span class="si">${</span><span class="nv">airflow</span><span class="p"> 설치 디렉토리</span><span class="si">}</span>
+
+<span class="c1">## 가상 환경 설치</span>
+$ virtualenv -p python3 venv
+$ <span class="nb">echo</span> <span class="s1">&#39;source $AIRFLOW_HOME/venv/bin/activate&#39;</span> &gt;&gt; .env
+<span class="c1">## airflow_home 디렉토리로 다시 접근하면 autoenv에 의해 .env가 읽히고 윗줄의 source 설정이 읽힌다.</span>
+<span class="c1">## 아래와 같이 나와야 autoenv 설정이 제대로 된것이다.</span>
+$ <span class="nb">cd</span> <span class="nv">$AIRFLOW_HOME</span>
+autoenv:
+autoenv: WARNING:
+autoenv: This is the first <span class="nb">time</span> you are about to <span class="nb">source</span> /<span class="si">${</span><span class="nv">AIRFLOW_HOME</span><span class="si">}</span>/.env:
+autoenv:
+autoenv:     --- <span class="o">(</span>begin contents<span class="o">)</span> ---------------------------------------
+autoenv:     <span class="nb">source</span> ./venv/bin/activate
+autoenv:
+autoenv:     --- <span class="o">(</span>end contents<span class="o">)</span> -----------------------------------------
+autoenv:
+autoenv: Are you sure you want to allow this? <span class="o">(</span>y/N<span class="o">)</span> y
+
+$ pip3 install apache-airflow<span class="o">=</span><span class="o">=</span>1.10.5
+
+<span class="c1">## initdb를 하면 초기 설정파일이 airflow_home에 생성된다.</span>
+$ airflow initdb
+<span class="c1">## dag가 저장될 디렉토리 생성</span>
+$ mkdir dags
+$ ls -ah
+.env  airflow.cfg  airflow.db	dags  logs  unittests.cfg  venv 
+
+<span class="c1">## 추가 모듈 설치</span>
+pip3 install apache-airflow<span class="o">[</span>hive<span class="o">]</span><span class="o">=</span><span class="o">=</span>1.10.5
+<span class="c1">## 만약 OSError: mysql_config not found 에러가 발생하면 sudo yum install mysql-devel을 설치한다.</span>
+pip3 install apache-airflow<span class="o">[</span>mysql<span class="o">]</span><span class="o">=</span><span class="o">=</span>1.10.5
+pip3 install apache-airflow<span class="o">[</span>celery<span class="o">]</span><span class="o">=</span><span class="o">=</span>1.10.5
+pip3 install sasl
+
+</code></pre></div><p>추가적으로 Redis와 Mysql을 설치해야하는데, 필자는 사내에서 사용하는 Redis와 Mysql 인스턴스가 있어 따로 설치법을 작성하지 않겠다.
+Redis 설치법은 <a href="https://redis.io/download">여기</a>를, Mysql 설치법은 <a href="https://opentutorials.org/module/1701/10229">여기</a>를 참고하면 되겠다.</p>
+<h1 id="2-airflow-설정-모든-서버">2. Airflow 설정 (모든 서버)</h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">vi ./airflow.cfg
+
+<span class="c1">## 아래의 설정 이외의 것들은 모두 기본설정</span>
+<span class="nv">default_timezone</span> <span class="o">=</span> Asia/Seoul
+<span class="nv">executor</span> <span class="o">=</span> CeleryExecutor
+<span class="nv">sql_alchemy_conn</span> <span class="o">=</span> mysql://<span class="o">{</span>db user<span class="o">}</span>:<span class="o">{</span>db pw<span class="o">}</span>@호스트:아이피/<span class="o">{</span>database<span class="o">}</span>
+<span class="nv">load_examples</span> <span class="o">=</span> False
+<span class="nv">broker_url</span> <span class="o">=</span> redis://:<span class="o">{</span>Redis pw<span class="o">}</span>@<span class="o">{</span>Redis Host<span class="o">}</span>:<span class="o">{</span>Redis port<span class="o">}</span>/0
+<span class="nv">result_backend</span> <span class="o">=</span> db+mysql://<span class="o">{</span>db user<span class="o">}</span>:<span class="o">{</span>db pw<span class="o">}</span>@호스트:아이피/<span class="o">{</span>database<span class="o">}</span>
+</code></pre></div><p>설정 완료 후 mysql에 각종 테이블들을 생성한다. <em>이는 하나의 서버에서만 진행한다.</em></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ airflow initdb
+</code></pre></div><h1 id="3-실행">3. 실행</h1>
+<h3 id="webserver-용-서버">webserver 용 서버</h3>
+<ul>
+<li>nohup airflow webserver &gt; /dev/null 2&gt;&amp;1 &amp;</li>
+<li>nohup airflow scheduler &gt; /dev/null 2&gt;&amp;1 &amp;</li>
+</ul>
+<h3 id="worker-용서버">worker 용서버</h3>
+<ul>
+<li>nohup airflow worker &gt; /dev/null 2&gt;&amp;1 &amp;</li>
+</ul>
+<h1 id="4-dag-테스트">4. DAG 테스트</h1>
+<p>아래는 <a href="https://airflow.apache.org/tutorial.html">airflow 홈</a>에 있는 예제를 약간 수정한 코드이다. 이 코드를 tutorial.py로 저장하고 각서버(webserver, worker) dags 폴더에 넣어보자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">Code that goes along with the Airflow tutorial located at:</span><span class="s2">
+</span><span class="s2"></span><span class="s2">https://github.com/apache/airflow/blob/master/airflow/example_dags/tutorial.py</span><span class="s2">
+</span><span class="s2"></span><span class="s2">&#34;&#34;&#34;</span>
+<span class="kn">from</span> <span class="nn">airflow</span> <span class="kn">import</span> <span class="n">DAG</span>
+<span class="kn">from</span> <span class="nn">airflow.operators.bash_operator</span> <span class="kn">import</span> <span class="n">BashOperator</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+
+<span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">owner</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">Airflow</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">depends_on_past</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">start_date</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email</span><span class="s1">&#39;</span><span class="p">:</span> <span class="p">[</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">airflow@example.com</span><span class="s1">&#39;</span><span class="p">]</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email_on_failure</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">email_on_retry</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retries</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">retry_delay</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="p">,</span>
+    <span class="sa"></span><span class="s1">&#39;</span><span class="s1">catchup</span><span class="s1">&#39;</span><span class="p">:</span> <span class="bp">False</span>
+    <span class="c1"># &#39;queue&#39;: &#39;bash_queue&#39;,</span>
+    <span class="c1"># &#39;pool&#39;: &#39;backfill&#39;,</span>
+    <span class="c1"># &#39;priority_weight&#39;: 10,</span>
+    <span class="c1"># &#39;end_date&#39;: datetime(2016, 1, 1),</span>
+<span class="p">}</span>
+
+<span class="n">dag</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">tutorial</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">default_args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span> <span class="n">schedule_interval</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">@once</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="c1"># t1, t2 and t3 are examples of tasks created by instantiating operators</span>
+<span class="n">t1</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">print_date</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">date</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">t2</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">sleep</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">sleep 5</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">templated_command</span> <span class="o">=</span> <span class="sa"></span><span class="s2">&#34;&#34;&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    {</span><span class="si">% f</span><span class="s2">or i in range(5) </span><span class="s2">%</span><span class="s2">}</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ ds }}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ macros.ds_add(ds, 7)}}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">        echo </span><span class="s2">&#34;</span><span class="s2">{{ params.my_param }}</span><span class="s2">&#34;</span><span class="s2">
+</span><span class="s2"></span><span class="s2">    {</span><span class="si">% e</span><span class="s2">ndfor </span><span class="s2">%</span><span class="s2">}</span><span class="s2">
+</span><span class="s2"></span><span class="s2">&#34;&#34;&#34;</span>
+
+<span class="n">t3</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">templated</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="n">templated_command</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="sa"></span><span class="s1">&#39;</span><span class="s1">my_param</span><span class="s1">&#39;</span><span class="p">:</span> <span class="sa"></span><span class="s1">&#39;</span><span class="s1">Parameter I passed in</span><span class="s1">&#39;</span><span class="p">}</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">)</span>
+
+<span class="n">t2</span><span class="o">.</span><span class="n">set_upstream</span><span class="p">(</span><span class="n">t1</span><span class="p">)</span>
+<span class="n">t3</span><span class="o">.</span><span class="n">set_upstream</span><span class="p">(</span><span class="n">t1</span><span class="p">)</span>
+</code></pre></div><p>dags에 파일이 생성되고 잠시 후 DAG를 웹페이지에서 확인할 수 있다.</p>
+<p>http://webserver_ip:8080 으로 접속하면 아래와 같은 페이지를 볼수 있다.
+<img src="airflow-admin-1.png" alt="airflow_web_service"></p>
+<p>위 이미지와 같이 DAG를 On 시킨뒤 실행 버튼을 누르면 정상적으로 성공하면 제대로 설정이 된것이다.</p>
+]]></content>
+		</item>
+		
+		<item>
+			<title>1. Azkaban 설치</title>
+			<link>https://krespo.github.io/posts/azkaban/1-azkaban/</link>
+			<pubDate>Thu, 31 Oct 2019 18:11:20 +0900</pubDate>
+			
+			<guid>https://krespo.github.io/posts/azkaban/1-azkaban/</guid>
+			<description>준비 1. OpenJDK 설치 $ sudo yum install java-1.8.0-openjdk java-1.8.0-openjdk-devel $ readlink /etc/alternatives/java ##java 위치 확인 /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre/bin/java ## 위 경로중 jre까지의 경로로 JAVA_HOME 환경변수를 잡아준다. $ echo &amp;#39;export JAVA_HOME=&amp;#34;/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre&amp;#34;&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ echo &amp;#39;export PATH=$PATH:$JAVA_HOME/bin:&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ source ~/.bash_profile 준비 2. JavaFX 설치 Azk</description>
+			<content type="html"><![CDATA[<h3 id="준비-1-openjdk-설치">준비 1. OpenJDK 설치</h3>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo yum install java-1.8.0-openjdk java-1.8.0-openjdk-devel
+$ readlink /etc/alternatives/java <span class="c1">##java 위치 확인</span>
+/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre/bin/java
+
+<span class="c1">## 위 경로중 jre까지의 경로로 JAVA_HOME 환경변수를 잡아준다.</span>
+$ <span class="nb">echo</span> <span class="s1">&#39;export JAVA_HOME=&#34;/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre&#34;&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">echo</span> <span class="s1">&#39;export PATH=$PATH:$JAVA_HOME/bin:&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">source</span> ~/.bash_profile
+
+</code></pre></div><h3 id="준비-2-javafx-설치">준비 2. JavaFX 설치</h3>
+<p>Azkaban은 JavaFX 모듈의 클래스를 일부를 사용한다. 그렇기 때문에 JavaFX를 설치해 주어야 하는데, Oralce JDK는 JavaFX가 기본적으로 포함이 되어서 JavaFX를 설치 하지 않아도 되지만, OpenJDK는 JavaFX 모듈이 빠져있어, 추가적으로 설치해줘야 한다.</p>
+<ol>
+<li><a href="https://gluonhq.com/products/javafx/">https://gluonhq.com/products/javafx/</a> 에서 JavaFX Linux SDK LTS 버전 다운로드(현재 11.0.4 버전)</li>
+<li>아래의 커맨드를 이용하여 JavaFX모듈 복사</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ unzip openjfx-11.0.2_linux-x64_bin-sdk.zip
+$ <span class="nb">cd</span> javafx-sdk-11.0.1
+$ sudo cp -arf lib/* <span class="si">${</span><span class="nv">JAVA_HOME</span><span class="si">}</span>/lib/
+</code></pre></div><h2 id="azkaban-설치">Azkaban 설치</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone https://github.com/azkaban/azkaban.git
+$ <span class="nb">cd</span> azkaban
+
+<span class="c1">##외부 네트웍이 차단되어있다면 gradle.properties를 수정하여 외부 접근 가능하도록 proxy 설정</span>
+$ vi gradle.properitese
+systemProp.http.proxyHost<span class="o">=</span>proxy.proxy.com
+systemProp.http.proxyPort<span class="o">=</span><span class="m">8888</span>
+systemProp.https.proxyHost<span class="o">=</span>proxy.proxy.com
+systemProp.https.proxyPort<span class="o">=</span><span class="m">8888</span>
+
+$ ./gradlew clean
+$ ./gradlew build installDist -x <span class="nb">test</span>
+
+<span class="c1">## Azkaban 실행</span>
+<span class="nb">cd</span> azkaban-solo-server/build/install/azkaban-solo-server<span class="p">;</span> bin/start-solo.sh
+</code></pre></div>]]></content>
+		</item>
+		
+	</channel>
+</rss>

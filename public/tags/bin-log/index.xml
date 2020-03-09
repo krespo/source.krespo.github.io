@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>bin-log on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/bin-log/</link>
+    <description>Recent content in bin-log on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Thu, 07 Nov 2019 13:50:51 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/bin-log/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Mysql 바이너리로그 끄고 켜기</title>
+      <link>https://krespo.github.io/posts/mysql/on-off-bin-log/</link>
+      <pubDate>Thu, 07 Nov 2019 13:50:51 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/mysql/on-off-bin-log/</guid>
+      <description>바이너리 로그는 master-slave 구성을 하거나, CDC를 할 때 사용하는데, 상황에 따라서 enable/disable 해야할 이슈가 있어 기록차원에서 남겨본다. 1.bin-log on $ vi /etc/my.cfg [mysqld] log-data=/data1/mysql/,ysql-bin $ sudo service mysql restart 2.bin-log off $ vi /etc/my.cfg</description>
+    </item>
+    
+  </channel>
+</rss>

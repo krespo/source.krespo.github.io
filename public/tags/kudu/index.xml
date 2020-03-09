@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>kudu on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/kudu/</link>
+    <description>Recent content in kudu on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Tue, 03 Mar 2020 16:19:21 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/kudu/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>[Kudu]Kudu와 Presto 그리고 unix_timestamp에 대해 이해하기</title>
+      <link>https://krespo.github.io/posts/kudu/presto-kudu-datetime/</link>
+      <pubDate>Tue, 03 Mar 2020 16:19:21 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/presto-kudu-datetime/</guid>
+      <description>Kudu 공식 문서에도 나와있지만 Kudu에서 주로 사용하는 쿼리엔진은 Impala나 Hive다. 하지만 필자는 이미 사용하고 있는 Presto 클러스터가 있어 Presto-Kudu Connector 를 이용하</description>
+    </item>
+    
+    <item>
+      <title>[Kudu] 시간 기준의 Range Partition 시 주의점(timezone, UTC)</title>
+      <link>https://krespo.github.io/posts/kudu/range-partition/</link>
+      <pubDate>Tue, 14 Jan 2020 13:13:56 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/range-partition/</guid>
+      <description>Kudu는 시간 컬럼을 저장할 때 unixtime_micros를 이용해서 저장한다. 만약 이 컬럼을 통해 연도별,월별,일별 등 시간으로 Range Partitio</description>
+    </item>
+    
+    <item>
+      <title>[Kudu] 4. 인코딩과 압축</title>
+      <link>https://krespo.github.io/posts/kudu/encoding-compression/</link>
+      <pubDate>Tue, 10 Dec 2019 18:22:25 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/encoding-compression/</guid>
+      <description>Kudu에서는 컬럼의 인코딩과 압축을 통해 저장 데이터의 사이즈를 줄여, 디스크 공간을 효율적으로 사용할 수 있도록 하고 있다. 1. 인코딩 인코딩은 테이블 생성 시 컬</description>
+    </item>
+    
+    <item>
+      <title>[Kudu] 3. Source Build를 이용한 설치</title>
+      <link>https://krespo.github.io/posts/kudu/install_kudu/</link>
+      <pubDate>Wed, 04 Dec 2019 16:52:07 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/install_kudu/</guid>
+      <description>kudu를 설치하는 방법은 cloudera repository를 이용하여 설치하는 방법이 있고, source build를 통해 설치하는 방법이 있는데, cloudera 버전은 라이센스 관련 이슈</description>
+    </item>
+    
+    <item>
+      <title>[Kudu] 2. Write And Compaction</title>
+      <link>https://krespo.github.io/posts/kudu/read-write-compaction/</link>
+      <pubDate>Mon, 02 Dec 2019 18:41:12 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/read-write-compaction/</guid>
+      <description>본 포스팅은 아래의 출처의 정보들을 조합하여 나름의 구성을 진행하였다. 잘못 이해하고 있거나, 문제가 있는 부분이 있을수 있음을 사전에 명시하고 시작하도록 하겠다</description>
+    </item>
+    
+    <item>
+      <title>[Kudu] 1. 소개 및 아키텍쳐</title>
+      <link>https://krespo.github.io/posts/kudu/introducing_apache_kudu/</link>
+      <pubDate>Mon, 02 Dec 2019 11:19:53 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kudu/introducing_apache_kudu/</guid>
+      <description>Apache Kudu 는 Columnar Storage로서, 실시간/대용량 데이터 분석이 가능한 저장 엔진이다. 여기에 Impala, Spark를 이용하여 쉽고 빠른 데이터 분석이 가능한 특징이 있다.</description>
+    </item>
+    
+  </channel>
+</rss>

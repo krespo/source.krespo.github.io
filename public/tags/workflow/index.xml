@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>workflow on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/workflow/</link>
+    <description>Recent content in workflow on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Tue, 12 Nov 2019 13:23:33 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/workflow/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>[Airflow] SparkSubmitOperator를 이용한 spark 실행</title>
+      <link>https://krespo.github.io/posts/airflow/spark-submit-and-airflow/</link>
+      <pubDate>Tue, 12 Nov 2019 13:23:33 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/airflow/spark-submit-and-airflow/</guid>
+      <description>Airflow에서는 다양한 Operator를 지원하는데 그 중 Spark을 실행하기 위한 SparkSubmitOperator 라는 것이 존재한다. 이번에는 SparkSubmitOper</description>
+    </item>
+    
+    <item>
+      <title>[Airflow] macOS catalina에서 hostname does not match this instance&#39;s hostname 해결하기</title>
+      <link>https://krespo.github.io/posts/airflow/hostname-error/</link>
+      <pubDate>Mon, 11 Nov 2019 16:34:10 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/airflow/hostname-error/</guid>
+      <description>얼마전 macOS Catalina버전으로 업그레이드 되면서 로컬에서 airflow가 정상적으로 동작하지 않는 문제가 생겼다. The recorded hostname [1m1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa[0m does not match this instance&amp;rsquo;s hostname [1m1.0.0.127.in-addr.arpa 위의 에러 메</description>
+    </item>
+    
+    <item>
+      <title>[Airflow] Scheduler SPOF(Single Point Of Failure) 제거하기</title>
+      <link>https://krespo.github.io/posts/airflow/airflow-scheduler-failover/</link>
+      <pubDate>Mon, 04 Nov 2019 18:48:06 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/airflow/airflow-scheduler-failover/</guid>
+      <description>위의 그림은 celery executor를 이용한 여러대의 워커로 구성한 아키텍쳐이다. 이중 scheduler는 DB에서 스케줄 정보를 가져와 redis의 pub/</description>
+    </item>
+    
+    <item>
+      <title>[Airflow] 커버로스 설정 및 hive 연결</title>
+      <link>https://krespo.github.io/posts/airflow/kerberos-configuration/</link>
+      <pubDate>Mon, 04 Nov 2019 16:05:44 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/airflow/kerberos-configuration/</guid>
+      <description>airflow를 이용하여 kerberos 인증이 적용된 데이터소스(ex - hadoop)에 접근하려면 커버로스 설정을 airflow에 적용해야 한다. 아래의 예제는 kerberos</description>
+    </item>
+    
+    <item>
+      <title>[Airflow] 설치</title>
+      <link>https://krespo.github.io/posts/airflow/1_airflow_install/</link>
+      <pubDate>Mon, 04 Nov 2019 11:34:19 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/airflow/1_airflow_install/</guid>
+      <description>설치 환경 CentOS 7.7 airflow 1.10.5 airflow는 단일 서버에서 설치하는 방법외에 python celery모듈을 이용하여 webserver와 worker서버를 분리 할수 있다.</description>
+    </item>
+    
+    <item>
+      <title>1. Azkaban 설치</title>
+      <link>https://krespo.github.io/posts/azkaban/1-azkaban/</link>
+      <pubDate>Thu, 31 Oct 2019 18:11:20 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/azkaban/1-azkaban/</guid>
+      <description>준비 1. OpenJDK 설치 $ sudo yum install java-1.8.0-openjdk java-1.8.0-openjdk-devel $ readlink /etc/alternatives/java ##java 위치 확인 /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre/bin/java ## 위 경로중 jre까지의 경로로 JAVA_HOME 환경변수를 잡아준다. $ echo &amp;#39;export JAVA_HOME=&amp;#34;/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre&amp;#34;&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ echo &amp;#39;export PATH=$PATH:$JAVA_HOME/bin:&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ source ~/.bash_profile 준비 2. JavaFX 설치 Azk</description>
+    </item>
+    
+  </channel>
+</rss>

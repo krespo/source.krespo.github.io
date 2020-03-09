@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<meta name="theme-color" content="#494f5c">
+	<meta name="msapplication-TileColor" content="#494f5c">
+<meta itemprop="name" content="[Nifi] Custom Processor 생성 및 테스트 With Docker">
+<meta itemprop="description" content="nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하">
+<meta itemprop="datePublished" content="2019-12-18T20:17:52&#43;09:00" />
+<meta itemprop="dateModified" content="2019-12-18T20:17:52&#43;09:00" />
+<meta itemprop="wordCount" content="1246">
+
+
+
+<meta itemprop="keywords" content="nifi,docker," /><meta property="og:title" content="[Nifi] Custom Processor 생성 및 테스트 With Docker" />
+<meta property="og:description" content="nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krespo.github.io/posts/nifi/create-custom-processor/" />
+<meta property="article:published_time" content="2019-12-18T20:17:52+09:00" />
+<meta property="article:modified_time" content="2019-12-18T20:17:52+09:00" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Nifi] Custom Processor 생성 및 테스트 With Docker"/>
+<meta name="twitter:description" content="nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하"/>
+
+	<link rel="apple-touch-icon" sizes="180x180" href="https://krespo.github.io/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="https://krespo.github.io/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="https://krespo.github.io/favicon-16x16.png">
+	<link rel="manifest" href="https://krespo.github.io/site.webmanifest">
+	<link rel="mask-icon" href="https://krespo.github.io/safari-pinned-tab.svg" color="">
+	<link rel="shortcut icon" href="https://krespo.github.io/favicon.ico">
+
+	<title>[Nifi] Custom Processor 생성 및 테스트 With Docker</title>
+	<link rel="stylesheet" href="https://krespo.github.io/css/style.min.f9353fa06d7a22965a18ef7a64336219ae96a64e6486a29e724589fec4778291.css" integrity="sha256-+TU/oG16IpZaGO96ZDNiGa6Wpk5khqKeckWJ/sR3gpE=" crossorigin="anonymous">
+	
+	<link rel="stylesheet" href="https://krespo.github.io/css/custom.css"><meta name="google-site-verification" content="VwnRREQaDb1y61f_w8NOkuXogYuXMMaz4N5of9uxDnE" />
+<meta name="naver-site-verification" content="43d30adf0d1326d89874b4e4b3c50d4151932b04"/>
+<script data-ad-client="ca-pub-7415573230782119" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+
+</head>
+
+<body id="page">
+	
+	<header id="site-header" class="animated slideInUp faster">
+		<div class="hdr-wrapper section-inner">
+			<div class="hdr-left">
+				<div class="site-branding">
+					<a href="https://krespo.github.io">나는 개발자</a>
+				</div>
+				<nav class="site-nav hide-in-mobile">
+					
+				<a href="https://krespo.github.io/posts/">Posts</a>
+
+				</nav>
+			</div>
+			<div class="hdr-right hdr-icons">
+				<span class="hdr-social hide-in-mobile"><a href="https://github.com/krespo" target="_blank" rel="noopener me" title="Github"><svg xmlns="http://www.w3.org/2000/svg" class="feather" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg></a></span><button id="menu-btn" class="hdr-btn" title=""><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-menu"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+			</div>
+		</div>
+	</header>
+	<div id="mobile-menu" class="animated fast">
+		<ul>
+			<li><a href="https://krespo.github.io/posts/">Posts</a></li>
+		</ul>
+	</div>
+
+
+	<main class="site-main section-inner animated fadeIn faster">
+		<article class="thin">
+			<header class="post-header">
+				<div class="post-meta"><span>Dec 18, 2019</span></div>
+				<h1>[Nifi] Custom Processor 생성 및 테스트 With Docker</h1>
+			</header>
+			<div class="content">
+				<p>nifi에 커스텀 프로세서를 등록할 일이 생겼는데, 커스텀 프로세서를 빌드한 후 테스트 하기가 까다로워 도커를 이용하여 로컬에 환경을 구축하고 간단하게 테스트 하는 방법을 적용해 보았다.</p>
+<h1 id="1-프로젝트-생성">1. 프로젝트 생성<a href="#1-프로젝트-생성" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h1>
+<p>아래는 maven이 설치 된 환경에서 진행했으며, maven이 설치되지 않았다면 <a href="https://maven.apache.org/install.html">Installing Apache Maven</a> 을 참고하여 maven을 설치하고 진행하도록 하자.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ mvn archetype:generate
+
+<span class="c1">## 아래와 같이 Choose a number .. 라고 나오면 nifi를 입력하여 nifi archetype을 검색하자.</span>
+Choose a number or apply filter <span class="o">(</span>format: <span class="o">[</span>groupId:<span class="o">]</span>artifactId, <span class="k">case</span> sensitive contains<span class="o">)</span>: 1462: nifi
+
+<span class="c1">## 이번에는 custom processor를 만들 것이기 때문에 nifi-processor-bundle-archetype을 선택하자.</span>
+Choose archetype:
+1: remote -&gt; org.apache.nifi:nifi-processor-bundle-archetype <span class="o">(</span>-<span class="o">)</span>
+2: remote -&gt; org.apache.nifi:nifi-service-bundle-archetype <span class="o">(</span>-<span class="o">)</span>
+Choose a number or apply filter <span class="o">(</span>format: <span class="o">[</span>groupId:<span class="o">]</span>artifactId, <span class="k">case</span> sensitive contains<span class="o">)</span>: : <span class="m">1</span>
+
+<span class="c1">## 아키타입 버전이 나오는데, 현재 사용중인 클러스터의 버전과 동일하게 선택한다.</span>
+Choose org.apache.nifi:nifi-processor-bundle-archetype version:
+1: 0.0.2-incubating
+2: 0.1.0-incubating
+3: 0.2.0-incubating
+4: 0.2.1
+5: 0.3.0
+6: 0.4.0
+7: 0.4.1
+8: 0.5.0
+9: 0.5.1
+10: 0.6.0
+11: 0.6.1
+12: 0.7.0
+13: 0.7.1
+14: 0.7.2
+15: 0.7.3
+16: 0.7.4
+17: 1.0.0-BETA
+18: 1.0.0
+19: 1.0.1
+20: 1.1.0
+21: 1.1.1
+22: 1.1.2
+23: 1.2.0
+24: 1.3.0
+25: 1.4.0
+26: 1.5.0
+27: 1.6.0
+28: 1.7.0
+29: 1.7.1
+30: 1.8.0
+31: 1.9.0
+32: 1.9.1
+33: 1.9.2
+34: 1.10.0
+Choose a number: 34: <span class="m">34</span>
+
+<span class="c1">## 아래와 같이 groupId, artifactId, version, artifactBaseName, parckage를 입력하여 프로젝트를 생성</span>
+<span class="c1">## 아래와 같은 파라미터로 프로젝트를 생성하면 프로젝트 디렉토리명은 artifactId로 생성이 되고, 해당 프로젝트 하위로 들어가면(여기서는 my-custom-project)</span>
+<span class="c1">## nifi-{artifactBaseName}-nar 와 nifi-{artifactBaseName}-processors 프로젝트가 생성된 것을 볼수 있다.</span>
+Choose a number: 34: <span class="m">34</span>
+Define value <span class="k">for</span> property <span class="s1">&#39;groupId&#39;</span>: io.github.krespo
+Define value <span class="k">for</span> property <span class="s1">&#39;artifactId&#39;</span>: my-custom-processor
+Define value <span class="k">for</span> property <span class="s1">&#39;version&#39;</span> 1.0-SNAPSHOT: :
+Define value <span class="k">for</span> property <span class="s1">&#39;artifactBaseName&#39;</span>: custom
+Define value <span class="k">for</span> property <span class="s1">&#39;package&#39;</span> io.github.krespo.processors.custom: : io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Using property: <span class="nv">nifiVersion</span> <span class="o">=</span> 1.10.0
+Confirm properties configuration:
+groupId: io.github.krespo
+artifactId: my-custom-processor
+version: 1.0-SNAPSHOT
+artifactBaseName: custom
+package: io.github.krespo
+nifiVersion: 1.10.0
+ Y: : y
+<span class="o">[</span>INFO<span class="o">]</span> ----------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Using following parameters <span class="k">for</span> creating project from Archetype: nifi-processor-bundle-archetype:1.10.0
+<span class="o">[</span>INFO<span class="o">]</span> ----------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: groupId, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactId, Value: my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: version, Value: 1.0-SNAPSHOT
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: package, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: packageInPathFormat, Value: io/github/krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: package, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactBaseName, Value: custom
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: version, Value: 1.0-SNAPSHOT
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: groupId, Value: io.github.krespo
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: artifactId, Value: my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> Parameter: nifiVersion, Value: 1.10.0
+<span class="o">[</span>INFO<span class="o">]</span> Project created from Archetype in dir: /Users/louis/git/my-custom-processor
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> BUILD SUCCESS
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+<span class="o">[</span>INFO<span class="o">]</span> Total time:  02:01 min
+<span class="o">[</span>INFO<span class="o">]</span> Finished at: 2019-12-18T21:33:44+09:00
+<span class="o">[</span>INFO<span class="o">]</span> ------------------------------------------------------------------------
+
+</code></pre></div><h1 id="2-maven-package를-이용하여-nar파일-생성">2. Maven package를 이용하여 nar파일 생성<a href="#2-maven-package를-이용하여-nar파일-생성" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h1>
+<p>프로젝트를 생성한 후 생성된 프로젝트로 이동하여 패키징을 하여 nar파일을 생성한다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">cd</span> my-custom-processor
+$ mvn clean package
+</code></pre></div><p>maven package를 진행하면 my-custom-processor/my-custom-nar/target 에 .nar 가 생성되는데, 이렇게 생성된 nar 파일을 nifi_설치경로/lib에 복사하고 nifi를 재시작 하면 nifi 커스텀 프로세서가 로드가 된다.
+하지만 지금은 로컬에 도커를 이용하여 nifi를 실행시킬 것이기 때문에 아래와 같은 작업으로 nar 파일을 nifi 도커 컨테이너에 적용하면 된다.</p>
+<h1 id="3-docker를-이용하여-nifi-컨테이너-생성-및-실행">3. Docker를 이용하여 nifi 컨테이너 생성 및 실행<a href="#3-docker를-이용하여-nifi-컨테이너-생성-및-실행" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h1>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker pull apache/nifi:1.10.0
+<span class="c1">## nifi 컨테이너를 생성한다. maven 빌드를 통해 생성된 nifi-custom-nar-1.0-SNAPSHOT.nar 파일을 도커 컨테이너의 sample.nar로 심볼릭링크를 걸듯이 작업한다.</span>
+$ docker create --name nifi -p 8080:8080 -v <span class="si">${</span><span class="nv">nifi_maven_project</span><span class="p"> 경로</span><span class="si">}</span>/nifi-custom-nar/target/nifi-custom-nar-1.0-SNAPSHOT.nar:/opt/nifi/nifi-1.10.0/lib/sample.nar apache/nifi:1.10.0
+
+$ docker start nifi
+</code></pre></div><h1 id="4-nifi-페이지에서-커스텀프로세서-확인">4. nifi 페이지에서 커스텀프로세서 확인<a href="#4-nifi-페이지에서-커스텀프로세서-확인" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h1>
+<p>http://localhost:8080/nifi/ 를 웹브라우저에서 실행 한후 Processor 등록화면서 My로 검색하면 아래와 같이 테스트로 생성한 커스텀 프로세서가 제대로 검색되는것을 볼수 있다.</p>
+<p><img src="custom-processor.png" alt="add processor"></p>
+<h1 id="4-커스텀-프로세서-재배포-방법">4. 커스텀 프로세서 재배포 방법<a href="#4-커스텀-프로세서-재배포-방법" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h1>
+<p>커스텀 프로세서의 로직을 수정했다면 아래와 같이 메이븐 빌드 후, nifi 컨테이너를 재시작시키는 작업 만으로 변경된 프로세서를 등록할 수 있다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ maven clean package
+$ docker restart nifi
+</code></pre></div>
+			</div>
+
+			<hr class="post-end">
+			<footer class="post-info">
+				<p>
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag meta-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7" y2="7"></line></svg><span class="tag"><a href="https://krespo.github.io/tags/nifi">nifi</a></span><span class="tag"><a href="https://krespo.github.io/tags/docker">docker</a></span>
+				</p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-file-text"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-calendar"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>2019-12-18 20:17 &#43;0900</p>
+			</footer>
+		</article>
+		<div class="post-nav thin">
+			<a class="next-post" href="https://krespo.github.io/posts/java/invalid-source-release-error/">
+				<span class="post-nav-label"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>&nbsp;</span><br><span>[Java] invalid source release 에러 해결</span>
+			</a>
+			<a class="prev-post" href="https://krespo.github.io/posts/kafka/skew-reassign-partition/">
+				<span class="post-nav-label">&nbsp;<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span><br><span>[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition</span>
+			</a>
+		</div>
+		<div id="comments" class="thin">
+<div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "krespogithub" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div>
+	</main>
+
+	<footer id="site-footer" class="section-inner thin animated fadeIn faster">
+		<p>&copy; 2020 <a href="https://krespo.github.io">Louis</a> &#183; <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></p>
+		<p>
+			Made with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> &#183; Theme <a href="https://github.com/Track3/hermit" target="_blank" rel="noopener">Hermit</a> &#183; <a href="https://krespo.github.io/posts/index.xml" target="_blank" title="rss"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-rss"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></a>
+		</p>
+	</footer>
+
+
+
+<script type="text/javascript" src="//wcs.naver.net/wcslog.js"></script>
+<script type="text/javascript">
+if(!wcs_add) var wcs_add = {};
+wcs_add["wa"] = "42422406c68d58";
+wcs_do();
+</script>
+
+
+
+
+	<script src="https://krespo.github.io/js/bundle.min.4a9a0ac3d2217822c7865b4161e6c2a71de1d70492264337755427898dd718f6.js" integrity="sha256-SpoKw9IheCLHhltBYebCpx3h1wSSJkM3dVQniY3XGPY=" crossorigin="anonymous"></script>
+	
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-151417087-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+</body>
+
+</html>

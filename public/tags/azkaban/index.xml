@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>azkaban on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/azkaban/</link>
+    <description>Recent content in azkaban on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Thu, 31 Oct 2019 18:11:20 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/azkaban/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>1. Azkaban 설치</title>
+      <link>https://krespo.github.io/posts/azkaban/1-azkaban/</link>
+      <pubDate>Thu, 31 Oct 2019 18:11:20 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/azkaban/1-azkaban/</guid>
+      <description>준비 1. OpenJDK 설치 $ sudo yum install java-1.8.0-openjdk java-1.8.0-openjdk-devel $ readlink /etc/alternatives/java ##java 위치 확인 /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre/bin/java ## 위 경로중 jre까지의 경로로 JAVA_HOME 환경변수를 잡아준다. $ echo &amp;#39;export JAVA_HOME=&amp;#34;/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.222.b10-1.el7_7.x86_64/jre&amp;#34;&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ echo &amp;#39;export PATH=$PATH:$JAVA_HOME/bin:&amp;#39; &amp;gt;&amp;gt; ~/.bash_profile $ source ~/.bash_profile 준비 2. JavaFX 설치 Azk</description>
+    </item>
+    
+  </channel>
+</rss>

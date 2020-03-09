@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Tags on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/</link>
+    <description>Recent content in Tags on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Tue, 03 Mar 2020 16:19:21 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>kudu</title>
+      <link>https://krespo.github.io/tags/kudu/</link>
+      <pubDate>Tue, 03 Mar 2020 16:19:21 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/kudu/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>presto</title>
+      <link>https://krespo.github.io/tags/presto/</link>
+      <pubDate>Tue, 03 Mar 2020 16:19:21 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/presto/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>airflow</title>
+      <link>https://krespo.github.io/tags/airflow/</link>
+      <pubDate>Mon, 24 Feb 2020 16:47:18 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/airflow/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>hadoop</title>
+      <link>https://krespo.github.io/tags/hadoop/</link>
+      <pubDate>Mon, 10 Feb 2020 17:33:42 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/hadoop/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>sqoop</title>
+      <link>https://krespo.github.io/tags/sqoop/</link>
+      <pubDate>Mon, 10 Feb 2020 17:33:42 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/sqoop/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>chrome</title>
+      <link>https://krespo.github.io/tags/chrome/</link>
+      <pubDate>Fri, 31 Jan 2020 16:56:58 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/chrome/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>ssl</title>
+      <link>https://krespo.github.io/tags/ssl/</link>
+      <pubDate>Fri, 31 Jan 2020 16:56:58 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/ssl/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>nifi</title>
+      <link>https://krespo.github.io/tags/nifi/</link>
+      <pubDate>Thu, 02 Jan 2020 11:01:41 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/nifi/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>IntelliJ</title>
+      <link>https://krespo.github.io/tags/intellij/</link>
+      <pubDate>Thu, 02 Jan 2020 10:21:11 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/intellij/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Java</title>
+      <link>https://krespo.github.io/tags/java/</link>
+      <pubDate>Thu, 02 Jan 2020 10:21:11 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/java/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Maven</title>
+      <link>https://krespo.github.io/tags/maven/</link>
+      <pubDate>Thu, 02 Jan 2020 10:21:11 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/maven/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>docker</title>
+      <link>https://krespo.github.io/tags/docker/</link>
+      <pubDate>Wed, 18 Dec 2019 20:17:52 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/docker/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kafka</title>
+      <link>https://krespo.github.io/tags/kafka/</link>
+      <pubDate>Wed, 11 Dec 2019 16:16:49 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/kafka/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kafka-manager</title>
+      <link>https://krespo.github.io/tags/kafka-manager/</link>
+      <pubDate>Wed, 11 Dec 2019 16:16:49 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/kafka-manager/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>spark</title>
+      <link>https://krespo.github.io/tags/spark/</link>
+      <pubDate>Tue, 12 Nov 2019 13:23:33 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/spark/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>spark-submit</title>
+      <link>https://krespo.github.io/tags/spark-submit/</link>
+      <pubDate>Tue, 12 Nov 2019 13:23:33 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/spark-submit/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>workflow</title>
+      <link>https://krespo.github.io/tags/workflow/</link>
+      <pubDate>Tue, 12 Nov 2019 13:23:33 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/workflow/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>bin-log</title>
+      <link>https://krespo.github.io/tags/bin-log/</link>
+      <pubDate>Thu, 07 Nov 2019 13:50:51 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/bin-log/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>mysql</title>
+      <link>https://krespo.github.io/tags/mysql/</link>
+      <pubDate>Thu, 07 Nov 2019 13:50:51 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/mysql/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kerberos</title>
+      <link>https://krespo.github.io/tags/kerberos/</link>
+      <pubDate>Mon, 04 Nov 2019 16:05:44 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/tags/kerberos/</guid>
+      <description></description>
+    </item>
+    
+  </channel>
+</rss>

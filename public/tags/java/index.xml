@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Java on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/java/</link>
+    <description>Recent content in Java on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Thu, 02 Jan 2020 10:21:11 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/java/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>[Java] invalid source release 에러 해결</title>
+      <link>https://krespo.github.io/posts/java/invalid-source-release-error/</link>
+      <pubDate>Thu, 02 Jan 2020 10:21:11 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/java/invalid-source-release-error/</guid>
+      <description>Error:java: invalid source release: 11 프로젝트를 진행하다보면 위와같은 에러를 보일때가 있는데, Intellij의 설정을 수정하여 해결할 수 있다. 1. Language Level 수정 Intellij에서 File</description>
+    </item>
+    
+  </channel>
+</rss>

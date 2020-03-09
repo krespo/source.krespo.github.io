@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>kafka on 나는 개발자</title>
+    <link>https://krespo.github.io/tags/kafka/</link>
+    <description>Recent content in kafka on 나는 개발자</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ko-KR</language>
+    <copyright>This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.</copyright>
+    <lastBuildDate>Wed, 11 Dec 2019 16:16:49 +0900</lastBuildDate>
+    
+	<atom:link href="https://krespo.github.io/tags/kafka/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition</title>
+      <link>https://krespo.github.io/posts/kafka/skew-reassign-partition/</link>
+      <pubDate>Wed, 11 Dec 2019 16:16:49 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kafka/skew-reassign-partition/</guid>
+      <description>kafka-manager에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다. 그럼 Skew는 무엇일까? Skew는 카프</description>
+    </item>
+    
+    <item>
+      <title>[Kafka Manager] 1.Installation</title>
+      <link>https://krespo.github.io/posts/kafka-manager/install-kafka-manager/</link>
+      <pubDate>Tue, 10 Dec 2019 14:31:31 +0900</pubDate>
+      
+      <guid>https://krespo.github.io/posts/kafka-manager/install-kafka-manager/</guid>
+      <description>yahoo에서 만든 kafka-manager를 이용하면 카프카 운영을 위한 다양한 일들을 Web UI기반으로 처리할 수 있다. 설치 ## https://github.com/yahoo/kafka-manager/releases 에서 원하는 버전을 확인하</description>
+    </item>
+    
+  </channel>
+</rss>

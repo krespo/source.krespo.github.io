@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<meta name="theme-color" content="#494f5c">
+	<meta name="msapplication-TileColor" content="#494f5c">
+<meta itemprop="name" content="[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition">
+<meta itemprop="description" content="kafka-manager에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다. 그럼 Skew는 무엇일까? Skew는 카프">
+<meta itemprop="datePublished" content="2019-12-11T16:16:49&#43;09:00" />
+<meta itemprop="dateModified" content="2019-12-11T16:16:49&#43;09:00" />
+<meta itemprop="wordCount" content="1051">
+
+
+
+<meta itemprop="keywords" content="kafka,kafka-manager," /><meta property="og:title" content="[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition" />
+<meta property="og:description" content="kafka-manager에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다. 그럼 Skew는 무엇일까? Skew는 카프" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krespo.github.io/posts/kafka/skew-reassign-partition/" />
+<meta property="article:published_time" content="2019-12-11T16:16:49+09:00" />
+<meta property="article:modified_time" content="2019-12-11T16:16:49+09:00" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition"/>
+<meta name="twitter:description" content="kafka-manager에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다. 그럼 Skew는 무엇일까? Skew는 카프"/>
+
+	<link rel="apple-touch-icon" sizes="180x180" href="https://krespo.github.io/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="https://krespo.github.io/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="https://krespo.github.io/favicon-16x16.png">
+	<link rel="manifest" href="https://krespo.github.io/site.webmanifest">
+	<link rel="mask-icon" href="https://krespo.github.io/safari-pinned-tab.svg" color="">
+	<link rel="shortcut icon" href="https://krespo.github.io/favicon.ico">
+
+	<title>[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition</title>
+	<link rel="stylesheet" href="https://krespo.github.io/css/style.min.f9353fa06d7a22965a18ef7a64336219ae96a64e6486a29e724589fec4778291.css" integrity="sha256-+TU/oG16IpZaGO96ZDNiGa6Wpk5khqKeckWJ/sR3gpE=" crossorigin="anonymous">
+	
+	<link rel="stylesheet" href="https://krespo.github.io/css/custom.css"><meta name="google-site-verification" content="VwnRREQaDb1y61f_w8NOkuXogYuXMMaz4N5of9uxDnE" />
+<meta name="naver-site-verification" content="43d30adf0d1326d89874b4e4b3c50d4151932b04"/>
+<script data-ad-client="ca-pub-7415573230782119" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+
+</head>
+
+<body id="page">
+	
+	<header id="site-header" class="animated slideInUp faster">
+		<div class="hdr-wrapper section-inner">
+			<div class="hdr-left">
+				<div class="site-branding">
+					<a href="https://krespo.github.io">나는 개발자</a>
+				</div>
+				<nav class="site-nav hide-in-mobile">
+					
+				<a href="https://krespo.github.io/posts/">Posts</a>
+
+				</nav>
+			</div>
+			<div class="hdr-right hdr-icons">
+				<span class="hdr-social hide-in-mobile"><a href="https://github.com/krespo" target="_blank" rel="noopener me" title="Github"><svg xmlns="http://www.w3.org/2000/svg" class="feather" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg></a></span><button id="menu-btn" class="hdr-btn" title=""><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-menu"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+			</div>
+		</div>
+	</header>
+	<div id="mobile-menu" class="animated fast">
+		<ul>
+			<li><a href="https://krespo.github.io/posts/">Posts</a></li>
+		</ul>
+	</div>
+
+
+	<main class="site-main section-inner animated fadeIn faster">
+		<article class="thin">
+			<header class="post-header">
+				<div class="post-meta"><span>Dec 11, 2019</span></div>
+				<h1>[Kafka] 파티션 Skew, Leader Skew 그리고 Reassign Partition</h1>
+			</header>
+			<div class="content">
+				<p><a href="https://github.com/yahoo/kafka-manager">kafka-manager</a>에서 카프카를 운영하다보면 Skewed 혹은 Leader Skewed가 true가 된 것을 종종 볼수 있다.</p>
+<p><img src="kafka-reassign-2.png" alt="kafka-skewed"></p>
+<h2 id="그럼-skew는-무엇일까">그럼 Skew는 무엇일까?<a href="#그럼-skew는-무엇일까" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h2>
+<p>Skew는 카프카 토픽의 파티션들이 각 브로커 서버에 균등하게 나눠지는것이 아니라, 한쪽으로 치우친 현상으로 <code>Skew</code>라고 한다.
+또한 각 파티션들의 리플리케이션에 의해 <code>Leader Partition/Follower Partition</code> 으로 나누는데, Leader Partition이 각 브로커에 균등하게 분산되지 않은것을 <code>Leader Skew</code> 라고 한다.</p>
+<p><img src="kafka-broker1.png" alt="kafka-broker"></p>
+<p>위 그림은 kafka broker : 3, partition: 3, replication factor: 2 일때 이상적으로 분산된 상태이다.
+이 상태에서 일부 브로커서버를 재시작 하게 되면 파티션 들이 HA를 위하여 live 된 브로커로 이동하게 되는데 이때 skew가 발생하게 된다.</p>
+<p><img src="kafka-broker2.png" alt="kafka-broker"></p>
+<p>그림에서 보는것과 같이 브로커당 파티션이 2개씩 할당이 되어야 하지만, 1002 브로커에 파티션이 3개가 할당되었기 때문에 Skew가 발생된 상황이다. Leader partition 또한 각 브로커에 1개씩 할당되어야 하지만, 1002 브로커에 2개의 Leader partition이 몰려있기 때문에 Leader Skew 가 발생한 상태이다.</p>
+<h2 id="skew를-해결할-수-있는-방법은-partition-reassign">Skew를 해결할 수 있는 방법은? Partition Reassign<a href="#skew를-해결할-수-있는-방법은-partition-reassign" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h2>
+<p>한쪽으로 몰린 Skew를 해결하기 위해서는 카프카에서 제공하는 Partition Reassign을 이용하여 파티션을 재배치 해주면 된다.</p>
+<p><img src="kafka-broker3.png" alt="kafka-broker"></p>
+<h3 id="1-kafka-reassign-partitions-사용하는-방법">1) kafka-reassign-partitions 사용하는 방법<a href="#1-kafka-reassign-partitions-사용하는-방법" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h3>
+<p>카프카에서 기본적으로 제공해주는 스크립트 중에 <code>kafka-reassign-partitions.sh</code> 라는 스크립트가 존재한다. 해당 스크립트는 json 타입의 파일로 파티셔닝 순서를 적어주고, 해당 파일을 통해 파티션을 재할당 하는 역할을 하게된다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-json" data-lang="json"><span class="p">{</span><span class="nt">&#34;version&#34;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span>
+  <span class="nt">&#34;partitions&#34;</span><span class="p">:</span><span class="p">[</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1002</span><span class="p">,</span><span class="mi">1003</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1003</span><span class="p">,</span><span class="mi">1001</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span><span class="nt">&#34;topic&#34;</span><span class="p">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="nt">&#34;partition&#34;</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span><span class="nt">&#34;replicas&#34;</span><span class="p">:</span><span class="p">[</span><span class="mi">1001</span><span class="p">,</span><span class="mi">1002</span><span class="p">]</span><span class="p">}</span>
+<span class="p">]</span><span class="p">}</span>
+</code></pre></div><div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bin/kafka-reassign-partitions.sh <span class="se">\
+</span><span class="se"></span>--zookeeper zookeeper:2181 <span class="se">\
+</span><span class="se"></span>--reassignment-json-file ./repiartion.json <span class="se">\
+</span><span class="se"></span>--execute
+</code></pre></div><p>json 내용을 살펴보면 상당히 심플하게 구성된 것을 볼수 있다.</p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="c1">//sample-topic 이라는 토픽의 0번 파티션을 broker.id가 1002, 1003인 브로커로 할당한다.
+</span><span class="c1"></span><span class="c1">//이때 replicas array의 맨 처음이 Leader가 되고, 그 뒷부분은 Follower가 된다.
+</span><span class="c1"></span><span class="p">{</span><span class="s2">&#34;topic&#34;</span><span class="o">:</span><span class="s2">&#34;sample-topic&#34;</span><span class="p">,</span> <span class="s2">&#34;partition&#34;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&#34;replicas&#34;</span><span class="o">:</span><span class="p">[</span><span class="mi">1002</span><span class="p">,</span><span class="mi">1003</span><span class="p">]</span><span class="p">}</span><span class="p">,</span>
+</code></pre></div><h3 id="2-kafka-manager-의-reassign을-사용하는-방법">2) kafka-manager 의 Reassign을 사용하는 방법<a href="#2-kafka-manager-의-reassign을-사용하는-방법" class="anchor" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></a></h3>
+<p>위의 kafka-reassign-partitions 으로 파티셔닝 하는 방식은 수기로 json파일을 생성해야 하기 때문에 파티션 갯수와 브로커 갯수가 많을수록 작성하기 고통스럽다.</p>
+<p>만약 kafka-manager 가 설치된 상황이라면 kafka-manager에서 제공하는 reassign 기능을 이용하여 손쉽게 재할당을 할 수 있게 된다. (kafka-manager 설치는 <a href="https://krespo.github.io/posts/kafka-manager/install-kafka-manager/">여기</a>에서 확인하자)</p>
+<ol>
+<li>kafka-manager의 상단메뉴에서 Topic -&gt; List -&gt; 재할당 하기 위한 토픽을 선택한다.</li>
+<li><code>Operations</code> 영역의 <code>Manual Partition Assignments</code>를 선택한다.</li>
+<li><img src="partition-reassign.png" alt="partition reassign">와 같이 Partition1-&gt;Replica 0을 Broker 1002에서 1003으로 변경하고 상단의 <code>Save Partition Assignment</code>를 누른다.</li>
+<li>3번의 작업후 바로 재할당 작업이 수행되지 않는다.
+다시 1번의 위치로 이동한 뒤 <code>Reassign Partitions</code> 버튼을 눌러줘야 실제로 파티션의 재할당이 수행된다.</li>
+</ol>
+<p>위와 같은 방식으로 kafka-manager를 설치하면 kafka의 다양한 운영을 쉽게할 수 있으니, 사용하지 않았다면 사용해 보는것도 좋다.</p>
+
+			</div>
+
+<div class="related-posts thin">
+	<h2></h2>
+	<ul>
+	
+	<li><a href="https://krespo.github.io/posts/kafka-manager/install-kafka-manager/">[Kafka Manager] 1.Installation</a></li>
+	
+	</ul>
+</div>
+
+			<hr class="post-end">
+			<footer class="post-info">
+				<p>
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag meta-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7" y2="7"></line></svg><span class="tag"><a href="https://krespo.github.io/tags/kafka">kafka</a></span><span class="tag"><a href="https://krespo.github.io/tags/kafka-manager">kafka-manager</a></span>
+				</p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-file-text"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></p>
+				<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-calendar"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>2019-12-11 16:16 &#43;0900</p>
+			</footer>
+		</article>
+		<div class="post-nav thin">
+			<a class="next-post" href="https://krespo.github.io/posts/nifi/create-custom-processor/">
+				<span class="post-nav-label"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>&nbsp;</span><br><span>[Nifi] Custom Processor 생성 및 테스트 With Docker</span>
+			</a>
+			<a class="prev-post" href="https://krespo.github.io/posts/kudu/encoding-compression/">
+				<span class="post-nav-label">&nbsp;<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span><br><span>[Kudu] 4. 인코딩과 압축</span>
+			</a>
+		</div>
+		<div id="comments" class="thin">
+<div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "krespogithub" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div>
+	</main>
+
+	<footer id="site-footer" class="section-inner thin animated fadeIn faster">
+		<p>&copy; 2020 <a href="https://krespo.github.io">Louis</a> &#183; <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></p>
+		<p>
+			Made with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> &#183; Theme <a href="https://github.com/Track3/hermit" target="_blank" rel="noopener">Hermit</a> &#183; <a href="https://krespo.github.io/posts/index.xml" target="_blank" title="rss"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-rss"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></a>
+		</p>
+	</footer>
+
+
+
+<script type="text/javascript" src="//wcs.naver.net/wcslog.js"></script>
+<script type="text/javascript">
+if(!wcs_add) var wcs_add = {};
+wcs_add["wa"] = "42422406c68d58";
+wcs_do();
+</script>
+
+
+
+
+	<script src="https://krespo.github.io/js/bundle.min.4a9a0ac3d2217822c7865b4161e6c2a71de1d70492264337755427898dd718f6.js" integrity="sha256-SpoKw9IheCLHhltBYebCpx3h1wSSJkM3dVQniY3XGPY=" crossorigin="anonymous"></script>
+	
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-151417087-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+</body>
+
+</html>
